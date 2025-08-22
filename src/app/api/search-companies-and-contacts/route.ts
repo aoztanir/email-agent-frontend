@@ -1,5 +1,8 @@
-import { GoogleMapsFlareSolverrScraper } from "@/lib/google-maps-scraper-flaresolverr";
-import { GroqCompanyFinder } from "@/lib/groq-company-finder";
+import {
+  CompanyForPatternGeneration,
+  generateEmailPatternsWithGroq,
+} from "@/lib/groq-email-pattern-generator";
+import { SearXNGService } from "@/lib/searxng-service";
 import { supabase } from "@/lib/supabase";
 import { YellowPagesFlareSolverrScraper } from "@/lib/yellow-pages-scraper";
 import { NextRequest } from "next/server";
@@ -9,20 +12,18 @@ interface CompanySearchRequest {
   total?: number;
 }
 
-interface Company {
+interface StoredCompany {
+  id: string;
   name: string;
+  website: string;
+  normalized_domain: string;
   address?: string;
-  website?: string;
   phone_number?: string;
-  place_id?: string;
-  reviews_count?: number | null;
-  reviews_average?: number | null;
-  store_shopping?: string;
-  in_store_pickup?: string;
-  store_delivery?: string;
-  place_type?: string;
-  opens_at?: string;
-  introduction?: string;
+}
+
+interface CompanyEmailPattern {
+  companyId: string;
+  pattern: string;
 }
 
 function normalizeWebsite(website?: string): string {
@@ -49,38 +50,6 @@ function normalizeWebsite(website?: string): string {
   }
 }
 
-function generateEmailPatterns(
-  firstName: string,
-  lastName: string,
-  domain: string
-): Array<{ email: string; confidence: number }> {
-  const patterns = [];
-  const first = firstName.toLowerCase().trim();
-  const last = lastName.toLowerCase().trim();
-
-  // Clean names (remove special characters, keep only letters)
-  const cleanFirst = first.replace(/[^a-z]/g, "");
-  const cleanLast = last.replace(/[^a-z]/g, "");
-
-  if (!cleanFirst || !domain) return [];
-
-  // Most common patterns with confidence scores
-  if (cleanLast) {
-    patterns.push(
-      { email: `${cleanFirst}.${cleanLast}@${domain}`, confidence: 85 },
-      { email: `${cleanFirst}${cleanLast}@${domain}`, confidence: 75 },
-      { email: `${cleanFirst}_${cleanLast}@${domain}`, confidence: 65 },
-      { email: `${cleanFirst}@${domain}`, confidence: 60 },
-      { email: `${cleanFirst[0]}${cleanLast}@${domain}`, confidence: 55 },
-      { email: `${cleanFirst}${cleanLast[0]}@${domain}`, confidence: 50 }
-    );
-  } else {
-    patterns.push({ email: `${cleanFirst}@${domain}`, confidence: 70 });
-  }
-
-  return patterns.slice(0, 4); // Return top 4 most likely patterns
-}
-
 export async function POST(req: NextRequest) {
   try {
     let body: CompanySearchRequest;
@@ -89,11 +58,6 @@ export async function POST(req: NextRequest) {
       body = await req.json();
     } catch (jsonError) {
       console.error("Failed to parse request body:", jsonError);
-      console.error("Request method:", req.method);
-      console.error(
-        "Request headers:",
-        Object.fromEntries(req.headers.entries())
-      );
       return Response.json(
         { error: "Invalid JSON in request body" },
         { status: 400 }
@@ -139,33 +103,24 @@ export async function POST(req: NextRequest) {
             }
           };
 
+          // Initialize services
+          const searxngService = new SearXNGService();
+
+          // STEP 1: Discover Companies
           sendSSE({
             type: "status",
             message: "Discovering new companies...",
           });
-          // const groq_finder = new GroqCompanyFinder();
-          // const groqcompanies = await groq_finder.findCompanies(
-          //   query,
-          //   "United States",
-          //   total
-          // );
-          // console.log(groqcompanies);
 
-          // Scrape companies using Yellow Pages scraper with streaming
           const yScraper = new YellowPagesFlareSolverrScraper();
           let companiesStreamedCount = 0;
           const streamedDomains = new Set<string>();
+          const discoveredCompanies: StoredCompany[] = [];
 
-          // const gScraper = new GoogleMapsFlareSolverrScraper();
-          // const gcompanies = await gScraper.scrapeCompanies(query, total);
-          // console.log(gcompanies);
-
-          const companies = await yScraper.scrapeCompaniesIntelligent(
+          await yScraper.scrapeCompaniesIntelligent(
             query,
             total,
             async (company) => {
-              // Stream each company as it's found
-
               try {
                 if (company.website && company.website.trim()) {
                   const normalizedDomain = normalizeWebsite(company.website);
@@ -178,7 +133,7 @@ export async function POST(req: NextRequest) {
                   streamedDomains.add(normalizedDomain);
                   companiesStreamedCount++;
 
-                  // Prepare company for database - map Yellow Pages data to our schema
+                  // Prepare company for database
                   const scrapedCompany = {
                     name: company.name || "",
                     address: company.address || "",
@@ -206,6 +161,8 @@ export async function POST(req: NextRequest) {
                       .single();
 
                   if (!companyError && companyResult) {
+                    discoveredCompanies.push(companyResult);
+
                     // Stream the company to the client immediately
                     sendSSE({
                       type: "company_found",
@@ -224,7 +181,7 @@ export async function POST(req: NextRequest) {
             userIP
           );
 
-          // Store the prompt data after scraping is complete
+          // Store the prompt data
           const promptData = {
             query_text: query,
             total_requested: total,
@@ -243,361 +200,298 @@ export async function POST(req: NextRequest) {
 
           const promptId = promptResult.id;
 
-          // Get all companies that were streamed and create relationships
-          if (companiesStreamedCount > 0) {
-            // Get all companies that match our search criteria
-            const { data: storedCompanies, error: fetchError } = await supabase
-              .from("scraped_company")
-              .select("id")
-              .in(
-                "normalized_domain",
-                companies
-                  .filter((c: Company) => c.website && c.website.trim())
-                  .map((c: Company) => normalizeWebsite(c.website))
-              );
+          // Create prompt-company relationships
+          if (discoveredCompanies.length > 0) {
+            const relationships = discoveredCompanies.map((company) => ({
+              prompt_id: promptId,
+              scraped_company_id: company.id,
+            }));
 
-            if (!fetchError && storedCompanies) {
-              const relationships = storedCompanies.map(
-                (company: { id: string }) => ({
-                  prompt_id: promptId,
-                  scraped_company_id: company.id,
-                })
-              );
-
-              await supabase
-                .from("prompt_to_scraped_company")
-                .upsert(relationships, {
-                  onConflict: "prompt_id,scraped_company_id",
-                });
-            }
+            await supabase
+              .from("prompt_to_scraped_company")
+              .upsert(relationships, {
+                onConflict: "prompt_id,scraped_company_id",
+              });
           }
+
+          // STEP 2: Search for Email Patterns using SearXNG
           sendSSE({
             type: "status",
-            message: "Discovering contacts for companies...",
+            message: "Searching for email patterns...",
           });
 
-          // Add timeout before proceeding
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+          const companiesForPatternGeneration: CompanyForPatternGeneration[] =
+            [];
 
-          // Find contacts for companies using SearxNG + LinkedIn search
-          const SEARXNG_BASE_URL =
-            process.env.SEARXNG_INSTANCE_URL || "http://localhost:8888";
-          let totalContactsFound = 0;
-
-          // Get companies that were just scraped to find contacts for
-          const { data: companiesToSearch, error: companiesError } =
-            await supabase
-              .from("scraped_company")
-              .select("id, name, website, normalized_domain")
-              .in(
-                "normalized_domain",
-                companies
-                  .filter((c: Company) => c.website && c.website.trim())
-                  .map((c: Company) => normalizeWebsite(c.website))
-              );
-
-          if (companiesError) {
-            console.error(
-              "Error fetching companies for contact search:",
-              companiesError
-            );
-          } else if (companiesToSearch && companiesToSearch.length > 0) {
+          for (const company of discoveredCompanies) {
             sendSSE({
               type: "status",
-              message: `Searching for contacts at ${companiesToSearch.length} companies...`,
+              message: `Finding email patterns for ${company.name}...`,
             });
 
-            // Process each company for contact finding
-            for (const company of companiesToSearch) {
+            const patternText = await searxngService.searchEmailPatterns(
+              company.name,
+              company.normalized_domain
+            );
+
+            companiesForPatternGeneration.push({
+              id: company.id,
+              name: company.name,
+              domain: company.normalized_domain,
+              rawPatternText: patternText,
+            });
+
+            // Small delay between searches
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
+
+          // STEP 3: Generate Email Patterns using Groq AI
+          sendSSE({
+            type: "status",
+            message: "Finding Emails...",
+          });
+
+          const emailPatterns = await generateEmailPatternsWithGroq(
+            companiesForPatternGeneration
+          );
+
+          // Store email patterns in a map for quick lookup
+          const emailPatternsMap = new Map<string, CompanyEmailPattern>();
+          emailPatterns.forEach((pattern) => {
+            emailPatternsMap.set(pattern.companyId, {
+              companyId: pattern.companyId,
+              pattern: pattern.pattern,
+            });
+          });
+
+          sendSSE({
+            type: "email_patterns_generated",
+            data: {
+              patternsCount: emailPatterns.length,
+              patterns: emailPatterns,
+            },
+          });
+
+          // STEP 4: Find Contacts using SearXNG
+          sendSSE({
+            type: "status",
+            message: "Discovering contacts...",
+          });
+
+          let totalContactsFound = 0;
+          const contactsWithEmails: Array<{
+            contact: {
+              id: string;
+              first_name: string;
+              last_name: string | null;
+              scraped_company_id: string;
+              linkedin_url: string | null;
+              bio: string | null;
+            };
+            generatedEmails: Array<{ email: string }>;
+          }> = [];
+
+          for (const company of discoveredCompanies) {
+            sendSSE({
+              type: "status",
+              message: `Finding contacts for ${company.name}...`,
+            });
+
+            // Search for contacts using SearXNG
+            const contactResults = await searxngService.searchContacts(
+              company.name,
+              company.normalized_domain
+            );
+
+            const companyEmailPattern = emailPatternsMap.get(company.id);
+
+            // Process each contact result
+            for (const contactResult of contactResults.slice(0, 10)) {
+              // Limit to 10 per company
               try {
-                // Search for LinkedIn profiles using SearxNG
-                const searchQuery = `site:linkedin.com/in ${company.name}`;
-                const encodedQuery = encodeURIComponent(searchQuery);
-                const searxngUrl = `${SEARXNG_BASE_URL}/search?q=${encodedQuery}&format=json`;
+                // Extract contact info
+                let fullName = "";
+                let firstName = "";
+                let lastName = "";
 
-                sendSSE({
-                  type: "status",
-                  message: `Finding profiles for ${company.name}...`,
-                });
-
-                const response = await fetch(searxngUrl, {
-                  headers: {
-                    "User-Agent":
-                      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                  },
-                });
-
-                if (!response.ok) {
-                  console.error(
-                    `SearxNG search failed for ${company.name}:`,
-                    response.status
+                if (contactResult.url.includes("linkedin.com/in/")) {
+                  // Extract name from LinkedIn title
+                  const nameMatch = contactResult.title.match(
+                    /^([^-|]+?)(?:\s*-|\s*\|)/
                   );
-                  continue;
+                  fullName = nameMatch ? nameMatch[1].trim() : "";
+                } else {
+                  // Try to extract from title or content
+                  const words = contactResult.title.split(/\s+/);
+                  if (words.length >= 2) {
+                    firstName = words[0];
+                    lastName = words[1];
+                    fullName = `${firstName} ${lastName}`;
+                  }
                 }
 
-                const searchResults = await response.json();
+                if (!fullName) continue;
 
-                const results = searchResults.results || [];
+                const nameParts = fullName.split(" ");
+                firstName = nameParts[0] || "";
+                lastName = nameParts.slice(1).join(" ") || "";
 
-                console.log(
-                  `SearxNG returned ${results.length} results for ${company.name}`
-                );
+                if (!firstName) continue;
 
-                // Filter for actual LinkedIn profile URLs
-                const linkedInProfiles = results
-                  .filter(
-                    (result: any) =>
-                      result.url &&
-                      result.url.includes("linkedin.com/in/") &&
-                      result.title &&
-                      !result.url.includes("/pub/dir/") && // Exclude directory pages
-                      !result.url.includes("linkedin.com/in/popular") // Exclude generic pages
-                  )
-                  .slice(0, 15); // Limit to top 15 results per company
+                // Check if contact already exists
+                const { data: existingContact } = await supabase
+                  .from("contact")
+                  .select("*")
+                  .eq("scraped_company_id", company.id)
+                  .eq("linkedin_url", contactResult.url)
+                  .single();
 
-                // Extract contact information and save to database
-                for (const profile of linkedInProfiles) {
-                  try {
-                    const profileUrl = profile.url;
-                    const profileTitle = profile.title || "";
+                let contactData;
+                let isNewContact = false;
 
-                    // Extract name from LinkedIn title (usually "FirstName LastName - Title at Company")
-                    const nameMatch = profileTitle.match(
-                      /^([^-|]+?)(?:\s*-|\s*\|)/
-                    );
-                    const fullName = nameMatch ? nameMatch[1].trim() : "";
+                if (existingContact) {
+                  contactData = existingContact;
+                } else {
+                  // Create new contact
+                  const newContactData = {
+                    scraped_company_id: company.id,
+                    first_name: firstName,
+                    last_name: lastName || null,
+                    linkedin_url: contactResult.url.includes("linkedin.com")
+                      ? contactResult.url
+                      : null,
+                    bio: contactResult.content
+                      ? contactResult.content.substring(0, 500)
+                      : null,
+                  };
 
-                    if (!fullName) continue;
-
-                    const nameParts = fullName.split(" ");
-                    const firstName = nameParts[0] || "";
-                    const lastName = nameParts.slice(1).join(" ") || "";
-
-                    if (!firstName) continue;
-
-                    // Check if contact already exists and get existing data
-                    const { data: existingContact } = await supabase
+                  const { data: newContact, error: contactError } =
+                    await supabase
                       .from("contact")
-                      .select("*")
-                      .eq("scraped_company_id", company.id)
-                      .eq("linkedin_url", profileUrl)
+                      .insert([newContactData])
+                      .select()
                       .single();
 
-                    let contactResult;
-                    let isNewContact = false;
-
-                    if (existingContact) {
-                      // Use existing contact
-                      contactResult = existingContact;
-                    } else {
-                      // Create new contact record
-                      const contactData = {
-                        scraped_company_id: company.id,
-                        first_name: firstName,
-                        last_name: lastName || null,
-                        linkedin_url: profileUrl,
-                        bio: profile.content
-                          ? profile.content.substring(0, 500)
-                          : null,
-                      };
-
-                      const { data: newContact, error: contactError } =
-                        await supabase
-                          .from("contact")
-                          .insert([contactData])
-                          .select()
-                          .single();
-
-                      if (!contactError && newContact) {
-                        contactResult = newContact;
-                        isNewContact = true;
-                      } else {
-                        console.error(
-                          `Error saving contact for ${company.name}:`,
-                          contactError
-                        );
-                        continue;
-                      }
-                    }
-
-                    // Always stream the contact to the client (whether new or existing)
-                    if (contactResult) {
-                      totalContactsFound++;
-
-                      sendSSE({
-                        type: "contact_found",
-                        contact: {
-                          id: contactResult.id,
-                          first_name: contactResult.first_name,
-                          last_name: contactResult.last_name,
-                          emails: [], // Will be populated later with email validation
-                          scraped_company_id: company.id, // Use scraped_company.id for frontend consistency
-                          company_name: company.name,
-                          linkedin_url: contactResult.linkedin_url,
-                          is_existing: !isNewContact,
-                        },
-                        progress: {
-                          current: totalContactsFound,
-                          company: company.name,
-                        },
-                      });
-                    }
-                  } catch (contactError) {
+                  if (!contactError && newContact) {
+                    contactData = newContact;
+                    isNewContact = true;
+                  } else {
                     console.error(
-                      `Error processing contact for ${company.name}:`,
+                      `Error saving contact for ${company.name}:`,
                       contactError
                     );
+                    continue;
                   }
                 }
-              } catch (error) {
-                console.error(
-                  `Error finding contacts for company ${company.name}:`,
-                  error
+
+                // STEP 5: Apply Email Patterns to Generate Emails
+                const generatedEmails: Array<{ email: string }> = [];
+
+                if (companyEmailPattern && contactData) {
+                  // Generate email using the AI-generated pattern
+                  let email = companyEmailPattern.pattern
+                    .replace(/firstname/g, firstName.toLowerCase())
+                    .replace(/lastname/g, lastName.toLowerCase())
+                    .replace(/first/g, firstName.toLowerCase())
+                    .replace(/last/g, lastName.toLowerCase())
+                    .replace(/f/g, firstName.charAt(0).toLowerCase())
+                    .replace(/l/g, lastName.charAt(0).toLowerCase())
+                    .replace(/domain\.com/g, company.normalized_domain);
+
+                  // Clean up email
+                  email = email.replace(/[^a-z0-9@._-]/g, "");
+
+                  if (email.includes("@") && email.includes(".")) {
+                    generatedEmails.push({ email });
+                  }
+                }
+
+                // Store the contact with g<enerated emails for later bulk insert
+                contactsWithEmails.push({
+                  contact: contactData,
+                  generatedEmails: generatedEmails,
+                });
+
+                totalContactsFound++;
+
+                console.log(
+                  `Streaming contact: ${firstName} ${lastName} with ${generatedEmails.length} emails`
                 );
-                continue;
+
+                // Stream the contact with emails to the client
+                sendSSE({
+                  type: "contact_found",
+                  contact: {
+                    id: contactData.id,
+                    first_name: contactData.first_name,
+                    last_name: contactData.last_name,
+                    emails: generatedEmails.map((e) => ({
+                      email: e.email,
+                      status: "Generated",
+                    })),
+                    company_id: company.id, // Use company_id instead of scraped_company_id
+                    company_name: company.name,
+                    linkedin_url: contactData.linkedin_url,
+                    is_existing: !isNewContact,
+                  },
+                  progress: {
+                    current: totalContactsFound,
+                    company: company.name,
+                  },
+                });
+              } catch (contactError) {
+                console.error(
+                  `Error processing contact for ${company.name}:`,
+                  contactError
+                );
               }
             }
 
-            sendSSE({
-              type: "status",
-              message: `Found ${totalContactsFound} contacts across ${companiesToSearch.length} companies.`,
-            });
+            // Small delay between companies
+            await new Promise((resolve) => setTimeout(resolve, 2000));
           }
 
-          // TODO EMAIL LOGIC - Get all companies and contacts for this session to generate emails
+          // STEP 6: Bulk Insert Generated Emails
           sendSSE({
             type: "status",
-            message: "Finding email addresses...",
+            message: "Storing generated email addresses...",
           });
 
-          // Get all companies found for this session with their contacts
-          const { data: sessionCompanies, error: sessionError } = await supabase
-            .from("prompt_to_scraped_company")
-            .select("*, scraped_company (*)")
-            .eq("prompt_id", promptId);
+          const emailsToInsert: Array<{
+            contact_id: string;
+            email: string;
+          }> = [];
 
-          if (sessionError) {
-            console.log("hello");
-            console.error("Error fetching session companies:", sessionError);
-          } else if (sessionCompanies && sessionCompanies.length > 0) {
-            console.log("hello");
-            const companyIds = sessionCompanies.map(
-              (item: any) => item.scraped_company.id
-            );
-            console.log(companyIds);
-
-            // Get all contacts for these companies
-            const { data: sessionContacts, error: contactsError } =
-              await supabase
-                .from("contact")
-                .select(
-                  `id, first_name, last_name, scraped_company_id, contact_email (*)`
-                )
-                .in("scraped_company_id", companyIds);
-
-            if (contactsError) {
-              console.error("Error fetching session contacts:", contactsError);
-            } else if (sessionContacts) {
-              sendSSE({
-                type: "status",
-                message: `Processing emails for ${sessionContacts.length} contacts...`,
+          for (const { contact, generatedEmails } of contactsWithEmails) {
+            for (const emailData of generatedEmails) {
+              emailsToInsert.push({
+                contact_id: contact.id,
+                email: emailData.email,
               });
-
-              // Process each contact for email generation/validation
-              for (const contact of sessionContacts) {
-                try {
-                  const companyData = sessionCompanies.find(
-                    (item: any) =>
-                      item.scraped_company.id === contact.scraped_company_id
-                  )?.scraped_company;
-
-                  if (!companyData || !companyData.normalized_domain) continue;
-
-                  const firstName = contact.first_name;
-                  const lastName = contact.last_name || "";
-
-                  if (!firstName) continue;
-
-                  // // Check if contact already has emails
-                  // const existingEmails = contact.contact_email || [];
-
-                  // Generate email patterns for this contact
-                  const emailPatterns = generateEmailPatterns(
-                    firstName,
-                    lastName,
-                    companyData.normalized_domain
-                  );
-
-                  // Save generated emails to database
-                  for (const emailPattern of emailPatterns) {
-                    try {
-                      // Validate emailPattern using hosted reacher api
-                      const reacherResponse = await fetch(
-                        "http://localhost:8080/v0/check_email",
-                        {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                          },
-                          body: JSON.stringify({
-                            to_email: emailPattern.email,
-                          }),
-                        }
-                      );
-
-                      if (reacherResponse.ok) {
-                        const validationResult = await reacherResponse.json();
-                        console.log(validationResult);
-
-                        // // Save email to database with validation results
-                        // const emailData = {
-                        //   contact_id: contact.id,
-                        //   email: emailPattern.email,
-                        //   confidence: emailPattern.confidence,
-                        //   is_valid:
-                        //     validationResult.is_reachable === "safe" ||
-                        //     validationResult.is_reachable === "risky",
-                        //   validation_status:
-                        //     validationResult.is_reachable || "unknown",
-                        //   validation_details: JSON.stringify(validationResult),
-                        // };
-
-                        // const { data: emailResult, error: emailError } =
-                        //   await supabase
-                        //     .from("contact_email")
-                        //     .upsert([emailData], {
-                        //       onConflict: "contact_id,email",
-                        //     })
-                        //     .select()
-                        //     .single();
-
-                        // if (!emailError && emailResult) {
-                        //   sendSSE({
-                        //     type: "email_validated",
-                        //     contact_id: contact.id,
-                        //     email: emailResult,
-                        //     company_name: companyData.name,
-                        //   });
-                        // }
-                      }
-                    } catch (emailValidationError) {
-                      console.error(
-                        `Error validating email ${emailPattern.email}:`,
-                        emailValidationError
-                      );
-                    }
-                  }
-                } catch (contactProcessError) {
-                  console.error(
-                    "Error processing contact for emails:",
-                    contactProcessError
-                  );
-                }
-              }
             }
           }
 
-          //* ______________________________________COMPLETION______________________________________
+          if (emailsToInsert.length > 0) {
+            console.log(
+              `Inserting ${emailsToInsert.length} emails to database`
+            );
+            const { error: emailInsertError } = await supabase
+              .from("contact_email")
+              .upsert(emailsToInsert, {
+                onConflict: "contact_id,email",
+              });
+
+            if (emailInsertError) {
+              console.error(
+                "Error inserting generated emails:",
+                emailInsertError
+              );
+            } else {
+              console.log(
+                `Successfully inserted ${emailsToInsert.length} emails`
+              );
+            }
+          }
 
           // Send completion event
           sendSSE({
@@ -606,15 +500,28 @@ export async function POST(req: NextRequest) {
             data: {
               promptId,
               companiesFound: companiesStreamedCount,
-              companiesStored: companiesStreamedCount,
               contactsFound: totalContactsFound,
+              emailsGenerated: emailsToInsert.length,
+              emailPatternsGenerated: emailPatterns.length,
             },
           });
 
           safeClose();
         } catch (error) {
           console.error("Stream error:", error);
-        } finally {
+          // Send error event
+          if (!isClosed) {
+            const sendSSE = (data: Record<string, unknown>) => {
+              const message = `data: ${JSON.stringify(data)}\n\n`;
+              controller.enqueue(encoder.encode(message));
+            };
+
+            sendSSE({
+              type: "error",
+              message: "An error occurred during processing",
+              error: error instanceof Error ? error.message : "Unknown error",
+            });
+          }
         }
       },
     });

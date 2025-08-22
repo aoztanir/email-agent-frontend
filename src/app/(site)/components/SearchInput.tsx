@@ -9,25 +9,6 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useSearchStore } from "@/store/searchStore";
 
-interface ScrapedCompany {
-  id: string;
-  name: string;
-  website: string;
-  normalized_domain: string;
-  address?: string;
-  phone_number?: string;
-  reviews_count?: number;
-  reviews_average?: number;
-  store_shopping?: string;
-  in_store_pickup?: string;
-  store_delivery?: string;
-  place_type?: string;
-  opens_at?: string;
-  introduction?: string;
-  created_at: string;
-  updated_at: string;
-}
-
 const SEARCH_SUGGESTIONS = [
   "Investment banks in NYC",
   "Tech startups in San Francisco",
@@ -46,15 +27,13 @@ export default function SearchInput() {
   const {
     searchQuery,
     isSearching,
-    currentStatus,
-    currentStage,
     setSearchQuery,
     setIsSearching,
     setHasSearched,
     setCompanies,
     setCurrentStatus,
     setCurrentStage,
-    setContacts,
+    setEmailPatterns,
     clearResults,
   } = useSearchStore();
 
@@ -121,20 +100,20 @@ export default function SearchInput() {
                     break;
 
                   case "contact_found":
-                    // Add individual contact to the store
+                    // Add individual contact to the store using the new addContact method
                     const contact = data.contact;
                     console.log("Contact found:", contact);
-                    const { setContacts: setContactsState } =
-                      useSearchStore.getState();
-                    setContactsState((prev) => {
-                      const companyContacts = prev[contact.company_id] || [];
-                      const newContacts = {
-                        ...prev,
-                        [contact.company_id]: [...companyContacts, contact],
-                      };
-                      console.log("Updated contacts:", newContacts);
-                      return newContacts;
-                    });
+                    const { addContact } = useSearchStore.getState();
+                    addContact(contact);
+                    break;
+
+                  case "email_patterns_generated":
+                    // Store the generated email patterns
+                    console.log("Email patterns generated:", data.data);
+                    setEmailPatterns(data.data.patterns);
+                    setCurrentStatus(
+                      `Generated ${data.data.patternsCount} email patterns`
+                    );
                     break;
 
                   case "companies_found":
@@ -155,11 +134,16 @@ export default function SearchInput() {
                     setCurrentStatus("Search completed!");
                     setCurrentStage("complete");
                     if (data.data) {
-                      const { companiesFound, contactsFound } = data.data;
+                      const {
+                        companiesFound,
+                        contactsFound,
+                        emailsGenerated,
+                        emailPatternsGenerated,
+                      } = data.data;
                       toast.success(
-                        `Successfully found ${companiesFound} companies and ${
+                        `Successfully found ${companiesFound} companies, ${
                           contactsFound || 0
-                        } contacts!`
+                        } contacts, and  ${emailsGenerated || 0} emails!`
                       );
                       // Fetch the stored companies from the database
                       // fetchStoredCompanies(data.data.promptId);

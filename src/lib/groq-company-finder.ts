@@ -38,7 +38,7 @@ export class GroqCompanyFinder {
   ): Promise<CompanyResult[]> {
     try {
       const result = await generateObject({
-        model: this.groq("openai/gpt-oss-20b"),
+        model: this.groq("meta-llama/llama-4-scout-17b-16e-instruct"),
         schema: CompanyResponseSchema,
         prompt: `Find ${limit} companies that match the query "${query}" in ${location}.
         

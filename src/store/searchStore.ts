@@ -15,8 +15,8 @@ interface Contact {
   last_name: string;
   emails: Array<{
     email: string;
-    confidence: string;
-    is_deliverable: boolean | null;
+    status: string;
+    is_deliverable?: boolean | null;
   }>;
   company_id: string;
   company_name: string;
@@ -24,9 +24,23 @@ interface Contact {
   is_existing?: boolean;
 }
 
+interface EmailPattern {
+  companyId: string;
+  companyName: string;
+  domain: string;
+  patterns: Array<{
+    pattern: string;
+    confidence: number;
+    description: string;
+  }>;
+  commonFormat: string;
+  reasoning: string;
+}
+
 interface SearchState {
   companies: Company[];
   contacts: Record<string, Contact[]>;
+  emailPatterns: EmailPattern[];
   isSearching: boolean;
   hasSearched: boolean;
   searchQuery: string;
@@ -37,6 +51,7 @@ interface SearchState {
 
   // Actions
   addCompany: (company: Company) => void;
+  addContact: (contact: Contact) => void;
   setCompanies: (
     companies: Company[] | ((prev: Company[]) => Company[])
   ) => void;
@@ -45,6 +60,7 @@ interface SearchState {
       | Record<string, Contact[]>
       | ((prev: Record<string, Contact[]>) => Record<string, Contact[]>)
   ) => void;
+  setEmailPatterns: (patterns: EmailPattern[]) => void;
   setIsSearching: (isSearching: boolean) => void;
   setHasSearched: (hasSearched: boolean) => void;
   setSearchQuery: (query: string) => void;
@@ -58,6 +74,7 @@ interface SearchState {
 export const useSearchStore = create<SearchState>((set) => ({
   companies: [],
   contacts: {},
+  emailPatterns: [],
   isSearching: false,
   hasSearched: false,
   searchQuery: "",
@@ -70,6 +87,16 @@ export const useSearchStore = create<SearchState>((set) => ({
     set((state) => ({
       companies: [...state.companies, company],
     })),
+  addContact: (contact) =>
+    set((state) => {
+      const companyContacts = state.contacts[contact.company_id] || [];
+      return {
+        contacts: {
+          ...state.contacts,
+          [contact.company_id]: [...companyContacts, contact],
+        },
+      };
+    }),
   setCompanies: (companies) =>
     set((state) => ({
       companies:
@@ -82,6 +109,7 @@ export const useSearchStore = create<SearchState>((set) => ({
       contacts:
         typeof contacts === "function" ? contacts(state.contacts) : contacts,
     })),
+  setEmailPatterns: (emailPatterns) => set({ emailPatterns }),
   setIsSearching: (isSearching) => set({ isSearching }),
   setHasSearched: (hasSearched) => set({ hasSearched }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
@@ -93,6 +121,7 @@ export const useSearchStore = create<SearchState>((set) => ({
     set({
       companies: [],
       contacts: {},
+      emailPatterns: [],
       currentStatus: "",
       currentStage: "",
       selectedCompany: null,
