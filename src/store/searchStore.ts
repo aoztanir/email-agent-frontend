@@ -41,6 +41,7 @@ interface SearchState {
   companies: Company[];
   contacts: Record<string, Contact[]>;
   emailPatterns: EmailPattern[];
+  companiesWithUncertainPatterns: string[];
   isSearching: boolean;
   hasSearched: boolean;
   searchQuery: string;
@@ -61,6 +62,7 @@ interface SearchState {
       | ((prev: Record<string, Contact[]>) => Record<string, Contact[]>)
   ) => void;
   setEmailPatterns: (patterns: EmailPattern[]) => void;
+  setCompaniesWithUncertainPatterns: (companies: string[]) => void;
   setIsSearching: (isSearching: boolean) => void;
   setHasSearched: (hasSearched: boolean) => void;
   setSearchQuery: (query: string) => void;
@@ -75,6 +77,7 @@ export const useSearchStore = create<SearchState>((set) => ({
   companies: [],
   contacts: {},
   emailPatterns: [],
+  companiesWithUncertainPatterns: [],
   isSearching: false,
   hasSearched: false,
   searchQuery: "",
@@ -110,6 +113,7 @@ export const useSearchStore = create<SearchState>((set) => ({
         typeof contacts === "function" ? contacts(state.contacts) : contacts,
     })),
   setEmailPatterns: (emailPatterns) => set({ emailPatterns }),
+  setCompaniesWithUncertainPatterns: (companiesWithUncertainPatterns) => set({ companiesWithUncertainPatterns }),
   setIsSearching: (isSearching) => set({ isSearching }),
   setHasSearched: (hasSearched) => set({ hasSearched }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
@@ -122,6 +126,7 @@ export const useSearchStore = create<SearchState>((set) => ({
       companies: [],
       contacts: {},
       emailPatterns: [],
+      companiesWithUncertainPatterns: [],
       currentStatus: "",
       currentStage: "",
       selectedCompany: null,

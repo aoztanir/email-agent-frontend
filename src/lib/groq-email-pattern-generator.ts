@@ -8,7 +8,12 @@ const EmailPatternSchema = z.object({
   pattern: z
     .string()
     .describe(
-      "Single most likely email pattern like 'firstname.lastname@domain.com'"
+      "Single most likely email pattern like 'firstname.lastname@domain.com' or 'unsure' if uncertain"
+    ),
+  isUnsure: z
+    .boolean()
+    .describe(
+      "True if AI is uncertain about the email pattern based on scraped data"
     ),
 });
 
@@ -27,27 +32,41 @@ export interface GeneratedEmailPatterns {
   companyId: string;
   name: string;
   pattern: string;
+  isUnsure: boolean;
 }
 
-const model = groq("meta-llama/llama-4-scout-17b-16e-instruct");
+const model = groq("moonshotai/kimi-k2-instruct");
 
 export async function generateEmailPatternsWithGroq(
   companies: CompanyForPatternGeneration[]
 ): Promise<GeneratedEmailPatterns[]> {
   try {
-    const prompt = `Analyze email patterns and return the single most likely format for each company.
+    const prompt = `Analyze the scraped email patterns and return the single most likely format template for each company.
 
 ${companies
   .map(
     (company) =>
       `ID: ${company.id} | Name: ${company.name} | Domain: ${
         company.domain
-      } | Info: ${company.rawPatternText || "none"}`
+      } | Scraped Info: ${company.rawPatternText || "none"}`
   )
   .join("\n")}
 
-Return the most common corporate email pattern (firstname.lastname@domain.com, firstname@domain.com, etc.) for each company ID.`;
+Based ONLY on the scraped info provided above, identify the email pattern template for each company. If the scraped info contains clear email patterns, return patterns using EXACTLY these formats:
+- firstname.lastname@domain.com (for patterns like john.smith@company.com)
+- firstname@domain.com (for patterns like john@company.com)
+- f.lastname@domain.com (for patterns like j.smith@company.com)
+- firstnamelastname@domain.com (for patterns like johnsmith@company.com)
+- lastname.firstname@domain.com (for patterns like smith.john@company.com)
 
+Use EXACTLY these placeholder words: firstname, lastname, f, l, firstnamelastname, domain.com.
+
+IMPORTANT: 
+- If the scraped info is empty, unclear, or does not contain enough information to confidently determine an email pattern, set pattern to 'unsure' and isUnsure to true. 
+- Only make confident predictions when you have clear evidence from the scraped data.
+- Do NOT make up patterns - only use what you can clearly identify from the scraped information.`;
+
+    console.log(prompt);
     const result = await generateObject({
       model,
       schema: BatchEmailPatternsSchema,
@@ -64,7 +83,8 @@ Return the most common corporate email pattern (firstname.lastname@domain.com, f
     return companies.map((company) => ({
       companyId: company.id,
       name: company.name,
-      pattern: "firstname.lastname@domain.com",
+      pattern: "unsure",
+      isUnsure: true,
     }));
   }
 }

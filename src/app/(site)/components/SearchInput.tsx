@@ -34,6 +34,7 @@ export default function SearchInput() {
     setCurrentStatus,
     setCurrentStage,
     setEmailPatterns,
+    setCompaniesWithUncertainPatterns,
     clearResults,
   } = useSearchStore();
 
@@ -116,6 +117,13 @@ export default function SearchInput() {
                     );
                     break;
 
+                  case "uncertain_patterns":
+                    // Handle companies with uncertain email patterns
+                    console.log("Companies with uncertain patterns:", data.companies);
+                    setCompaniesWithUncertainPatterns(data.companies);
+                    toast.info(data.message);
+                    break;
+
                   case "companies_found":
                     setCompanies(data.companies);
                     // toast.success(data.message);
@@ -138,13 +146,17 @@ export default function SearchInput() {
                         companiesFound,
                         contactsFound,
                         emailsGenerated,
-                        emailPatternsGenerated,
+                        companiesWithUnsurePatterns,
                       } = data.data;
-                      toast.success(
-                        `Successfully found ${companiesFound} companies, ${
-                          contactsFound || 0
-                        } contacts, and  ${emailsGenerated || 0} emails!`
-                      );
+                      let message = `Successfully found ${companiesFound} companies, ${
+                        contactsFound || 0
+                      } contacts, and ${emailsGenerated || 0} emails!`;
+                      
+                      if (companiesWithUnsurePatterns > 0) {
+                        message += ` (${companiesWithUnsurePatterns} companies skipped due to uncertain email patterns)`;
+                      }
+                      
+                      toast.success(message);
                       // Fetch the stored companies from the database
                       // fetchStoredCompanies(data.data.promptId);
                     } else {

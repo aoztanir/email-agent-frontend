@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Building, Users, Mail, Loader2, ExternalLink } from "lucide-react";
+import { Building, Users, Mail, Loader2, ExternalLink, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSearchStore } from "@/store/searchStore";
@@ -40,6 +40,7 @@ export default function SearchResults() {
   const {
     companies,
     contacts,
+    companiesWithUncertainPatterns,
     isSearching,
     currentStatus,
     currentStage,
@@ -184,6 +185,7 @@ export default function SearchResults() {
           {companies.map((company, index) => {
             const companyContacts = contacts ? contacts[company.id] || [] : [];
             const confirmedEmails = getConfirmedEmailsCount(company.id);
+            const hasUncertainPattern = companiesWithUncertainPatterns.includes(company.name);
 
             return (
               <Card
@@ -218,14 +220,26 @@ export default function SearchResults() {
                         )}
                       </div>
                     </div>
-                    {company.is_existing && (
-                      <Badge
-                        variant="outline"
-                        className="text-green-600 border-green-600 ml-2"
-                      >
-                        Existing
-                      </Badge>
-                    )}
+                    <div className="flex gap-2 ml-2">
+                      {company.is_existing && (
+                        <Badge
+                          variant="outline"
+                          className="text-green-600 border-green-600"
+                        >
+                          Existing
+                        </Badge>
+                      )}
+                      {hasUncertainPattern && (
+                        <Badge
+                          variant="outline"
+                          className="text-yellow-600 border-yellow-600 bg-yellow-50 dark:bg-yellow-900/20"
+                          title="AI was uncertain about email patterns for this company"
+                        >
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          Emails Uncertain
+                        </Badge>
+                      )}
+                    </div>
                   </div>
 
                   {/* Stats */}

@@ -24,6 +24,7 @@ interface StoredCompany {
 interface CompanyEmailPattern {
   companyId: string;
   pattern: string;
+  isUnsure: boolean;
 }
 
 function normalizeWebsite(website?: string): string {
@@ -261,6 +262,7 @@ export async function POST(req: NextRequest) {
             emailPatternsMap.set(pattern.companyId, {
               companyId: pattern.companyId,
               pattern: pattern.pattern,
+              isUnsure: pattern.isUnsure,
             });
           });
 
@@ -272,7 +274,7 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          // STEP 4: Find Contacts using SearXNG
+          // STEP 4: Find Contacts using SearXNG (only for companies with certain email patterns)
           sendSSE({
             type: "status",
             message: "Discovering contacts...",
@@ -291,7 +293,27 @@ export async function POST(req: NextRequest) {
             generatedEmails: Array<{ email: string }>;
           }> = [];
 
-          for (const company of discoveredCompanies) {
+          // Filter out companies where AI is unsure about email patterns
+          const companiesWithCertainPatterns = discoveredCompanies.filter(company => {
+            const pattern = emailPatternsMap.get(company.id);
+            return pattern && !pattern.isUnsure;
+          });
+
+          const companiesWithUnsurePatterns = discoveredCompanies.filter(company => {
+            const pattern = emailPatternsMap.get(company.id);
+            return pattern && pattern.isUnsure;
+          });
+
+          // Send info about companies skipped due to uncertain patterns
+          if (companiesWithUnsurePatterns.length > 0) {
+            sendSSE({
+              type: "uncertain_patterns",
+              message: `Skipping contact discovery for ${companiesWithUnsurePatterns.length} companies due to uncertain email patterns`,
+              companies: companiesWithUnsurePatterns.map(c => c.name),
+            });
+          }
+
+          for (const company of companiesWithCertainPatterns) {
             sendSSE({
               type: "status",
               message: `Finding contacts for ${company.name}...`,
@@ -387,22 +409,42 @@ export async function POST(req: NextRequest) {
                 // STEP 5: Apply Email Patterns to Generate Emails
                 const generatedEmails: Array<{ email: string }> = [];
 
-                if (companyEmailPattern && contactData) {
-                  // Generate email using the AI-generated pattern
+                if (companyEmailPattern && contactData && !companyEmailPattern.isUnsure) {
+                  console.log(`Generating email for ${firstName} ${lastName} using pattern: ${companyEmailPattern.pattern}`);
+                  
+                  // Generate email using the AI-analyzed pattern
                   let email = companyEmailPattern.pattern
-                    .replace(/firstname/g, firstName.toLowerCase())
-                    .replace(/lastname/g, lastName.toLowerCase())
-                    .replace(/first/g, firstName.toLowerCase())
-                    .replace(/last/g, lastName.toLowerCase())
-                    .replace(/f/g, firstName.charAt(0).toLowerCase())
-                    .replace(/l/g, lastName.charAt(0).toLowerCase())
-                    .replace(/domain\.com/g, company.normalized_domain);
+                    // Handle combined patterns like "firstnamelastname"
+                    .replace(/\bfirstnamelastname\b/g, `${firstName.toLowerCase()}${lastName.toLowerCase()}`)
+                    .replace(/\blastnamefirstname\b/g, `${lastName.toLowerCase()}${firstName.toLowerCase()}`)
+                    // Handle separated patterns
+                    .replace(/\bfirstname\b/g, firstName.toLowerCase())
+                    .replace(/\blastname\b/g, lastName.toLowerCase())
+                    .replace(/\bfirst\b/g, firstName.toLowerCase())
+                    .replace(/\blast\b/g, lastName.toLowerCase())
+                    .replace(/\bf\b/g, firstName.charAt(0).toLowerCase())
+                    .replace(/\bl\b/g, lastName.charAt(0).toLowerCase())
+                    // Handle domain replacements
+                    .replace(/domain\.com/g, company.normalized_domain)
+                    .replace(/@domain/g, `@${company.normalized_domain}`);
 
-                  // Clean up email
-                  email = email.replace(/[^a-z0-9@._-]/g, "");
+                  // Clean up email - be more conservative about what we remove
+                  email = email
+                    .replace(/\s+/g, "")
+                    .replace(/[^a-z0-9@._-]/g, "");
+                  
+                  console.log(`Generated email: ${email}`);
 
-                  if (email.includes("@") && email.includes(".")) {
+                  if (
+                    email.includes("@") &&
+                    email.includes(".") &&
+                    !email.includes("undefined") &&
+                    !email.includes("firstname") &&
+                    !email.includes("lastname")
+                  ) {
                     generatedEmails.push({ email });
+                  } else {
+                    console.warn(`Invalid email generated: ${email} for pattern: ${companyEmailPattern.pattern}`);
                   }
                 }
 
@@ -503,6 +545,8 @@ export async function POST(req: NextRequest) {
               contactsFound: totalContactsFound,
               emailsGenerated: emailsToInsert.length,
               emailPatternsGenerated: emailPatterns.length,
+              companiesWithCertainPatterns: companiesWithCertainPatterns.length,
+              companiesWithUnsurePatterns: companiesWithUnsurePatterns.length,
             },
           });
 
