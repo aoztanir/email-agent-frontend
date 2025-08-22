@@ -10,6 +10,7 @@ import SearchResults from "./components/SearchResults";
 import CompanyDetailsModal from "./components/CompanyDetailsModal";
 import { useSearchStore } from "@/store/searchStore";
 import { FlickeringGrid } from "@/components/magicui/flickering-grid";
+import { BackgroundBeams } from "@/components/magicui/background-beams";
 
 export default function MainPage() {
   const hasSearched = useSearchStore((state) => state.hasSearched);
@@ -18,16 +19,17 @@ export default function MainPage() {
   return (
     <main className="min-h-screen bg-white dark:bg-black text-black dark:text-white relative">
       {!hasSearched && (
-        <FlickeringGrid
-          className="fixed inset-0 z-0 w-full h-full [mask-image:radial-gradient(900px_circle_at_center,white,transparent)]"
-          squareSize={4}
-          gridGap={6}
-          color="#60A5FA"
-          maxOpacity={0.5}
-          flickerChance={0.1}
-          height={2000}
-          width={2000}
-        />
+        <BackgroundBeams />
+        // <FlickeringGrid
+        //   className="fixed inset-0 z-0 w-full h-full [mask-image:radial-gradient(900px_circle_at_center,white,transparent)]"
+        //   squareSize={4}
+        //   gridGap={6}
+        //   color="#60A5FA"
+        //   maxOpacity={0.5}
+        //   flickerChance={0.1}
+        //   height={2000}
+        //   width={2000}
+        // />
       )}
 
       <div className="absolute top-6 right-6 z-30">

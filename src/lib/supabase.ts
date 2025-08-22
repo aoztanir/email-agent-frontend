@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
@@ -104,7 +104,7 @@ export interface ScrapeJob {
 // Check if Supabase is properly configured
 const isSupabaseConfigured = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
   
   if (!url || !key || url.includes('your_') || key.includes('your_')) {
     console.warn('Supabase not properly configured. Using fallback values.')
