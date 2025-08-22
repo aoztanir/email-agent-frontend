@@ -2,9 +2,9 @@ import {
   CompanyForPatternGeneration,
   generateEmailPatternsWithGroq,
 } from "@/lib/groq-email-pattern-generator";
+import { GroqCompanyFinder } from "@/lib/groq-company-finder";
 import { SearXNGService } from "@/lib/searxng-service";
 import { supabase } from "@/lib/supabase";
-import { YellowPagesFlareSolverrScraper } from "@/lib/yellow-pages-scraper";
 import { NextRequest } from "next/server";
 
 interface CompanySearchRequest {
@@ -19,6 +19,7 @@ interface StoredCompany {
   normalized_domain: string;
   address?: string;
   phone_number?: string;
+  introduction?: string;
 }
 
 interface CompanyEmailPattern {
@@ -65,7 +66,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { query, total = 20 } = body;
+    const { query, total = 5 } = body;
+
+    if (total > 10) {
+      return Response.json(
+        { error: "Total cannot exceed 10" },
+        { status: 400 }
+      );
+    }
 
     if (!query) {
       return Response.json({ error: "Query is required" }, { status: 400 });
@@ -106,81 +114,87 @@ export async function POST(req: NextRequest) {
 
           // Initialize services
           const searxngService = new SearXNGService();
+          const groqCompanyFinder = new GroqCompanyFinder();
 
-          // STEP 1: Discover Companies
+          // STEP 1: Discover Companies using Groq
           sendSSE({
             type: "status",
-            message: "Discovering new companies...",
+            message: "Discovering companies with AI...",
           });
 
-          const yScraper = new YellowPagesFlareSolverrScraper();
           let companiesStreamedCount = 0;
           const streamedDomains = new Set<string>();
           const discoveredCompanies: StoredCompany[] = [];
 
-          await yScraper.scrapeCompaniesIntelligent(
-            query,
-            total,
-            async (company) => {
+          try {
+            const foundCompanies = await groqCompanyFinder.findCompanies(query, "United States", total);
+            
+            for (const company of foundCompanies) {
               try {
-                if (company.website && company.website.trim()) {
-                  const normalizedDomain = normalizeWebsite(company.website);
+                const normalizedDomain = company.domain ? normalizeWebsite(company.domain) : "";
 
-                  // Skip if we've already streamed this domain in this session
-                  if (streamedDomains.has(normalizedDomain)) {
-                    return;
-                  }
+                // Skip if we've already streamed this domain in this session
+                if (normalizedDomain && streamedDomains.has(normalizedDomain)) {
+                  continue;
+                }
 
+                if (normalizedDomain) {
                   streamedDomains.add(normalizedDomain);
-                  companiesStreamedCount++;
+                }
+                companiesStreamedCount++;
 
-                  // Prepare company for database
-                  const scrapedCompany = {
-                    name: company.name || "",
-                    address: company.address || "",
-                    website: company.website || "",
-                    normalized_domain: normalizedDomain,
-                    phone_number: company.phone_number || "",
-                    reviews_count: company.reviews_count || null,
-                    reviews_average: company.reviews_average || null,
-                    store_shopping: company.store_shopping || "Unknown",
-                    in_store_pickup: company.in_store_pickup || "Unknown",
-                    store_delivery: company.store_delivery || "Unknown",
-                    place_type: company.place_type || "",
-                    opens_at: company.opens_at || "",
-                    introduction: company.introduction || "",
-                  };
+                // Prepare company for database
+                const scrapedCompany = {
+                  name: company.name || "",
+                  address: company.address || "",
+                  website: company.domain || "",
+                  normalized_domain: normalizedDomain,
+                  phone_number: "", // Groq doesn't provide phone numbers
+                  reviews_count: null,
+                  reviews_average: null,
+                  store_shopping: "Unknown",
+                  in_store_pickup: "Unknown",
+                  store_delivery: "Unknown",
+                  place_type: "",
+                  opens_at: "",
+                  introduction: company.description || "",
+                };
 
-                  // Insert company immediately
-                  const { data: companyResult, error: companyError } =
-                    await supabase
-                      .from("scraped_company")
-                      .upsert([scrapedCompany], {
-                        onConflict: "normalized_domain",
-                      })
-                      .select()
-                      .single();
+                // Insert company immediately
+                const { data: companyResult, error: companyError } =
+                  await supabase
+                    .from("scraped_company")
+                    .upsert([scrapedCompany], {
+                      onConflict: "normalized_domain",
+                    })
+                    .select()
+                    .single();
 
-                  if (!companyError && companyResult) {
-                    discoveredCompanies.push(companyResult);
+                if (!companyError && companyResult) {
+                  discoveredCompanies.push(companyResult);
 
-                    // Stream the company to the client immediately
-                    sendSSE({
-                      type: "company_found",
-                      company: companyResult,
-                      progress: {
-                        current: companiesStreamedCount,
-                        total: total,
-                      },
-                    });
-                  }
+                  // Stream the company to the client immediately
+                  sendSSE({
+                    type: "company_found",
+                    company: companyResult,
+                    progress: {
+                      current: companiesStreamedCount,
+                      total: total,
+                    },
+                  });
                 }
               } catch (error) {
-                console.error("Error streaming company:", error);
+                console.error("Error processing company:", error);
               }
-            },
-            userIP
-          );
+            }
+          } catch (error) {
+            console.error("Error finding companies with Groq:", error);
+            // Send error but continue with empty results
+            sendSSE({
+              type: "error",
+              message: "Failed to find companies with AI. Please try again.",
+            });
+          }
 
           // Store the prompt data
           const promptData = {
@@ -294,22 +308,26 @@ export async function POST(req: NextRequest) {
           }> = [];
 
           // Filter out companies where AI is unsure about email patterns
-          const companiesWithCertainPatterns = discoveredCompanies.filter(company => {
-            const pattern = emailPatternsMap.get(company.id);
-            return pattern && !pattern.isUnsure;
-          });
+          const companiesWithCertainPatterns = discoveredCompanies.filter(
+            (company) => {
+              const pattern = emailPatternsMap.get(company.id);
+              return pattern && !pattern.isUnsure;
+            }
+          );
 
-          const companiesWithUnsurePatterns = discoveredCompanies.filter(company => {
-            const pattern = emailPatternsMap.get(company.id);
-            return pattern && pattern.isUnsure;
-          });
+          const companiesWithUnsurePatterns = discoveredCompanies.filter(
+            (company) => {
+              const pattern = emailPatternsMap.get(company.id);
+              return pattern && pattern.isUnsure;
+            }
+          );
 
           // Send info about companies skipped due to uncertain patterns
           if (companiesWithUnsurePatterns.length > 0) {
             sendSSE({
               type: "uncertain_patterns",
               message: `Skipping contact discovery for ${companiesWithUnsurePatterns.length} companies due to uncertain email patterns`,
-              companies: companiesWithUnsurePatterns.map(c => c.name),
+              companies: companiesWithUnsurePatterns.map((c) => c.name),
             });
           }
 
@@ -331,34 +349,10 @@ export async function POST(req: NextRequest) {
             for (const contactResult of contactResults.slice(0, 10)) {
               // Limit to 10 per company
               try {
-                // Extract contact info
-                let fullName = "";
-                let firstName = "";
-                let lastName = "";
+                // Contact parsing is now handled by SearXNG service
+                const { firstName, lastName, fullName } = contactResult;
 
-                if (contactResult.url.includes("linkedin.com/in/")) {
-                  // Extract name from LinkedIn title
-                  const nameMatch = contactResult.title.match(
-                    /^([^-|]+?)(?:\s*-|\s*\|)/
-                  );
-                  fullName = nameMatch ? nameMatch[1].trim() : "";
-                } else {
-                  // Try to extract from title or content
-                  const words = contactResult.title.split(/\s+/);
-                  if (words.length >= 2) {
-                    firstName = words[0];
-                    lastName = words[1];
-                    fullName = `${firstName} ${lastName}`;
-                  }
-                }
-
-                if (!fullName) continue;
-
-                const nameParts = fullName.split(" ");
-                firstName = nameParts[0] || "";
-                lastName = nameParts.slice(1).join(" ") || "";
-
-                if (!firstName) continue;
+                if (!firstName || !fullName) continue;
 
                 // Check if contact already exists
                 const { data: existingContact } = await supabase
@@ -409,14 +403,26 @@ export async function POST(req: NextRequest) {
                 // STEP 5: Apply Email Patterns to Generate Emails
                 const generatedEmails: Array<{ email: string }> = [];
 
-                if (companyEmailPattern && contactData && !companyEmailPattern.isUnsure) {
-                  console.log(`Generating email for ${firstName} ${lastName} using pattern: ${companyEmailPattern.pattern}`);
-                  
+                if (
+                  companyEmailPattern &&
+                  contactData &&
+                  !companyEmailPattern.isUnsure
+                ) {
+                  console.log(
+                    `Generating email for ${firstName} ${lastName} using pattern: ${companyEmailPattern.pattern}`
+                  );
+
                   // Generate email using the AI-analyzed pattern
                   let email = companyEmailPattern.pattern
                     // Handle combined patterns like "firstnamelastname"
-                    .replace(/\bfirstnamelastname\b/g, `${firstName.toLowerCase()}${lastName.toLowerCase()}`)
-                    .replace(/\blastnamefirstname\b/g, `${lastName.toLowerCase()}${firstName.toLowerCase()}`)
+                    .replace(
+                      /\bfirstnamelastname\b/g,
+                      `${firstName.toLowerCase()}${lastName.toLowerCase()}`
+                    )
+                    .replace(
+                      /\blastnamefirstname\b/g,
+                      `${lastName.toLowerCase()}${firstName.toLowerCase()}`
+                    )
                     // Handle separated patterns
                     .replace(/\bfirstname\b/g, firstName.toLowerCase())
                     .replace(/\blastname\b/g, lastName.toLowerCase())
@@ -432,7 +438,7 @@ export async function POST(req: NextRequest) {
                   email = email
                     .replace(/\s+/g, "")
                     .replace(/[^a-z0-9@._-]/g, "");
-                  
+
                   console.log(`Generated email: ${email}`);
 
                   if (
@@ -444,7 +450,9 @@ export async function POST(req: NextRequest) {
                   ) {
                     generatedEmails.push({ email });
                   } else {
-                    console.warn(`Invalid email generated: ${email} for pattern: ${companyEmailPattern.pattern}`);
+                    console.warn(
+                      `Invalid email generated: ${email} for pattern: ${companyEmailPattern.pattern}`
+                    );
                   }
                 }
 

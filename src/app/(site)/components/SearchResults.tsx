@@ -2,7 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Building, Users, Mail, Loader2, ExternalLink, AlertTriangle } from "lucide-react";
+import {
+  Building,
+  Users,
+  Mail,
+  Loader2,
+  ExternalLink,
+  AlertTriangle,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSearchStore } from "@/store/searchStore";
@@ -115,11 +122,11 @@ export default function SearchResults() {
         {/* Show progress stats if we have some data */}
         {(totalContacts > 0 || totalEmails > 0) && (
           <div className="flex justify-center gap-4 mt-6">
-            <Badge variant="outline" className="text-sm">
+            <Badge variant="light" color="orange" className="text-sm">
               <Users className="w-4 h-4 mr-1" />
               {totalContacts} contacts
             </Badge>
-            <Badge variant="outline" className="text-sm">
+            <Badge variant="light" color="emerald" className="text-sm">
               <Mail className="w-4 h-4 mr-1" />
               {totalEmails} emails
             </Badge>
@@ -164,7 +171,7 @@ export default function SearchResults() {
                 {companies.length} companies
               </Badge>
               {totalContacts > 0 && (
-                <Badge variant="outline" className="text-xs">
+                <Badge variant="light" color="emerald" className="text-xs">
                   <Users className="w-3 h-3 mr-1" />
                   {totalContacts} contacts
                 </Badge>
@@ -185,7 +192,9 @@ export default function SearchResults() {
           {companies.map((company, index) => {
             const companyContacts = contacts ? contacts[company.id] || [] : [];
             const confirmedEmails = getConfirmedEmailsCount(company.id);
-            const hasUncertainPattern = companiesWithUncertainPatterns.includes(company.name);
+            const hasUncertainPattern = companiesWithUncertainPatterns.includes(
+              company.name
+            );
 
             return (
               <Card
@@ -221,14 +230,6 @@ export default function SearchResults() {
                       </div>
                     </div>
                     <div className="flex gap-2 ml-2">
-                      {company.is_existing && (
-                        <Badge
-                          variant="outline"
-                          className="text-green-600 border-green-600"
-                        >
-                          Existing
-                        </Badge>
-                      )}
                       {hasUncertainPattern && (
                         <Badge
                           variant="outline"
@@ -244,12 +245,12 @@ export default function SearchResults() {
 
                   {/* Stats */}
                   <div className="flex gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      <Users className="w-3 h-3 mr-1" />
+                    <Badge variant="light" color="blue" className="text-xs">
+                      <Users className="w-3 h-3" />
                       {companyContacts.length} contacts
                     </Badge>
-                    <Badge variant="secondary" className="text-xs">
-                      <Mail className="w-3 h-3 mr-1" />
+                    <Badge variant="light" color="orange" className="text-xs">
+                      <Mail className="w-3 h-3" />
                       {confirmedEmails} emails
                     </Badge>
                     {isSearching && currentStatus?.includes(company.name) && (
@@ -257,7 +258,7 @@ export default function SearchResults() {
                         variant="outline"
                         className="text-xs animate-pulse"
                       >
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        <Loader2 className="w-3 h-3 animate-spin" />
                         Searching...
                       </Badge>
                     )}
@@ -299,14 +300,10 @@ export default function SearchResults() {
                               {contact.emails.slice(0, 1).map((email, idx) => (
                                 <Badge
                                   key={idx}
-                                  variant={
-                                    email.is_deliverable === true
-                                      ? "default"
-                                      : "outline"
-                                  }
+                                  variant="outline"
                                   className="text-[10px] px-1 py-0"
                                 >
-                                  {email.email.split("@")[0]}
+                                  {email.email}
                                 </Badge>
                               ))}
                               {contact.emails.length === 0 && (
@@ -315,14 +312,6 @@ export default function SearchResults() {
                                   className="text-[10px] px-1 py-0"
                                 >
                                   LinkedIn
-                                </Badge>
-                              )}
-                              {contact.is_existing && (
-                                <Badge
-                                  variant="secondary"
-                                  className="text-[10px] px-1 py-0"
-                                >
-                                  Existing
                                 </Badge>
                               )}
                             </div>

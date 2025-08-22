@@ -15,6 +15,14 @@ import {
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useSearchStore } from "@/store/searchStore";
 
 export default function CompanyDetailsModal() {
@@ -93,22 +101,13 @@ export default function CompanyDetailsModal() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {selectedCompany.is_existing && (
-                <Badge
-                  variant="outline"
-                  className="text-green-600 border-green-600"
-                >
-                  Existing
-                </Badge>
-              )}
-            </div>
+            <div className="flex items-center gap-2"></div>
           </div>
 
-          {/* Contacts List */}
+          {/* Email Table */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Contacts</h3>
+              <h3 className="text-2xl ">Contacts</h3>
               {isLoadingContacts && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -131,69 +130,96 @@ export default function CompanyDetailsModal() {
                 )}
               </div>
             ) : (
-              <div className="space-y-3">
-                <AnimatePresence>
-                  {companyContacts.map((contact, index) => (
-                    <motion.div
-                      key={contact.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="bg-muted/50 rounded-lg p-4"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-medium">
-                              {contact.first_name} {contact.last_name}
-                            </h4>
-                            {contact.linkedin_url && (
-                              <a
-                                href={contact.linkedin_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800"
-                                aria-label={`View ${contact.first_name} ${contact.last_name} on LinkedIn`}
+              <div className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Contact Name</TableHead>
+                      <TableHead className="text-right">
+                        Email Address
+                      </TableHead>
+                      {/* <TableHead>Status</TableHead> */}
+                      <TableHead className="text-right w-12">Profile</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <AnimatePresence>
+                      {companyContacts.flatMap((contact) =>
+                        contact.emails.length > 0
+                          ? contact.emails.map((email, emailIdx) => (
+                              <motion.tr
+                                key={`${contact.id}-${emailIdx}`}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: emailIdx * 0.05 }}
                               >
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
-                            )}
-                          </div>
-                          <div className="space-y-1">
-                            {contact.emails.map((email, idx) => (
-                              <div
-                                key={idx}
-                                className="flex items-center gap-2"
-                              >
-                                <Badge
-                                  variant={
-                                    email.is_deliverable === true
-                                      ? "default"
-                                      : "outline"
-                                  }
-                                  className="text-xs"
-                                >
-                                  {email.email}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">
-                                  {email.confidence}
-                                </span>
-                                {email.is_deliverable === true && (
-                                  <Badge
-                                    variant="default"
-                                    className="text-xs bg-green-600"
-                                  >
-                                    Verified
+                                <TableCell className="font-medium">
+                                  {contact.first_name} {contact.last_name}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Badge color="emerald" variant="light">
+                                    {email.email}
                                   </Badge>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+                                </TableCell>
+
+                                <TableCell className="text-right w-12">
+                                  <div className="flex justify-end">
+                                    {contact.linkedin_url ? (
+                                      <a
+                                        href={contact.linkedin_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:text-blue-800 inline-flex"
+                                        aria-label={`View ${contact.first_name} ${contact.last_name} on LinkedIn`}
+                                      >
+                                        <ExternalLink className="w-4 h-4" />
+                                      </a>
+                                    ) : (
+                                      <span className="text-muted-foreground">
+                                        -
+                                      </span>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </motion.tr>
+                            ))
+                          : [
+                              <motion.tr
+                                key={contact.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                              >
+                                <TableCell className="font-medium">
+                                  {contact.first_name} {contact.last_name}
+                                </TableCell>
+                                <TableCell className="text-right text-muted-foreground italic">
+                                  No email generated
+                                </TableCell>
+                                <TableCell className="text-right w-12">
+                                  <div className="flex justify-end">
+                                    {contact.linkedin_url ? (
+                                      <a
+                                        href={contact.linkedin_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:text-blue-800 inline-flex"
+                                        aria-label={`View ${contact.first_name} ${contact.last_name} on LinkedIn`}
+                                      >
+                                        <ExternalLink className="w-4 h-4" />
+                                      </a>
+                                    ) : (
+                                      <span className="text-muted-foreground">
+                                        -
+                                      </span>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </motion.tr>,
+                            ]
+                      )}
+                    </AnimatePresence>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </div>

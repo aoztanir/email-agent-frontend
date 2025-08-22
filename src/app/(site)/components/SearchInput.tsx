@@ -119,7 +119,10 @@ export default function SearchInput() {
 
                   case "uncertain_patterns":
                     // Handle companies with uncertain email patterns
-                    console.log("Companies with uncertain patterns:", data.companies);
+                    console.log(
+                      "Companies with uncertain patterns:",
+                      data.companies
+                    );
                     setCompaniesWithUncertainPatterns(data.companies);
                     toast.info(data.message);
                     break;
@@ -151,11 +154,11 @@ export default function SearchInput() {
                       let message = `Successfully found ${companiesFound} companies, ${
                         contactsFound || 0
                       } contacts, and ${emailsGenerated || 0} emails!`;
-                      
+
                       if (companiesWithUnsurePatterns > 0) {
                         message += ` (${companiesWithUnsurePatterns} companies skipped due to uncertain email patterns)`;
                       }
-                      
+
                       toast.success(message);
                       // Fetch the stored companies from the database
                       // fetchStoredCompanies(data.data.promptId);
@@ -206,7 +209,7 @@ export default function SearchInput() {
       transition={{ duration: 0.6 }}
       className="relative"
     >
-      <div className="relative bg-card border border-1 rounded-xl p-3 backdrop-blur-sm shadow-xl space-y-1">
+      <div className="relative bg-card border border-1 rounded-xl p-3  shadow-xl space-y-1">
         {/* Search Input */}
         <div className="relative space-y-2">
           <div className="relative flex items-center">
@@ -250,9 +253,9 @@ export default function SearchInput() {
             <Slider
               value={companyCount}
               onValueChange={setCompanyCount}
-              max={100}
-              min={30}
-              step={5}
+              max={10}
+              min={1}
+              step={1}
               className="w-full [&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
               disabled={isSearching}
             />

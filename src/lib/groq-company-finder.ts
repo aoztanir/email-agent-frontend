@@ -6,12 +6,14 @@ interface CompanyResult {
   name: string;
   address: string;
   domain: string;
+  description: string;
 }
 
 const CompanySchema = z.object({
   name: z.string(),
   address: z.string(),
   domain: z.string(),
+  description: z.string(),
 });
 
 const CompanyResponseSchema = z.object({
@@ -47,6 +49,7 @@ export class GroqCompanyFinder {
         - Include full street addresses when possible
         - Domain should be just the domain name (e.g., "example.com" not "https://example.com")
         - If no domain is known, use an empty string ""
+        - Include a one sentence description of what the company does
         - Return exactly ${limit} companies or as many as you can find`,
       });
 
@@ -57,12 +60,15 @@ export class GroqCompanyFinder {
             company.name &&
             typeof company.name === "string" &&
             company.address &&
-            typeof company.address === "string"
+            typeof company.address === "string" &&
+            company.description &&
+            typeof company.description === "string"
         )
         .map((company) => ({
           name: company.name.trim(),
           address: company.address.trim(),
           domain: (company.domain || "").trim(),
+          description: company.description.trim(),
         }));
 
       console.log(
