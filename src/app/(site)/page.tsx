@@ -11,6 +11,7 @@ import CompanyDetailsModal from "./components/CompanyDetailsModal";
 import { useSearchStore } from "@/store/searchStore";
 import { FlickeringGrid } from "@/components/magicui/flickering-grid";
 import { BackgroundBeams } from "@/components/magicui/background-beams";
+import { DockDemo } from "@/components/dock";
 
 export default function MainPage() {
   const hasSearched = useSearchStore((state) => state.hasSearched);
@@ -32,9 +33,6 @@ export default function MainPage() {
         // />
       )}
 
-      <div className="absolute top-6 right-6 z-30">
-        <ModeToggle />
-      </div>
 
       {hasSearched && (
         <div className="relative z-10 pt-20 pb-32">
@@ -57,6 +55,8 @@ export default function MainPage() {
       </div>
 
       <CompanyDetailsModal />
+      
+      <DockDemo />
     </main>
   );
 }

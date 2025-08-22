@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { login, signup } from "./actions";
+import { DockDemo } from "@/components/dock";
 
 export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -142,6 +143,8 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+      
+      <DockDemo />
     </div>
   );
 }
