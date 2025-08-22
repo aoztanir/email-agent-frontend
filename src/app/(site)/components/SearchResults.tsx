@@ -300,7 +300,8 @@ export default function SearchResults() {
                               {contact.emails.slice(0, 1).map((email, idx) => (
                                 <Badge
                                   key={idx}
-                                  variant="outline"
+                                  variant="light"
+                                  color="emerald"
                                   className="text-[10px] px-1 py-0"
                                 >
                                   {email.email}
