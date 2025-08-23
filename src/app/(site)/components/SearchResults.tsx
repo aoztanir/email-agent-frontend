@@ -9,10 +9,30 @@ import {
   Loader2,
   ExternalLink,
   AlertTriangle,
+  Save,
+  LogIn,
+  Check,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useSearchStore } from "@/store/searchStore";
+import { createClient } from "@/utils/supabase/client";
+import { useRouter } from "next/navigation";
+import { COLORS } from "@/constants/COLORS";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const LOADING_MESSAGES = [
   "Scouring the digital landscape",
@@ -44,6 +64,12 @@ const CONTACT_LOADING_MESSAGES = [
 ];
 
 export default function SearchResults() {
+  const router = useRouter();
+  const supabase = createClient();
+  const [user, setUser] = useState<any>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
   const {
     companies,
     contacts,
@@ -55,6 +81,26 @@ export default function SearchResults() {
     setIsModalOpen,
   } = useSearchStore();
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+
+  // Check authentication status
+  useEffect(() => {
+    const checkAuth = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user);
+      setIsLoadingAuth(false);
+    };
+    checkAuth();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
 
   // Rotate loading messages every 2 seconds if no specific status
   useEffect(() => {
@@ -85,6 +131,54 @@ export default function SearchResults() {
   const totalEmails = Object.values(contacts || {})
     .flat()
     .reduce((sum, contact) => sum + contact.emails.length, 0);
+
+  const handleSaveContacts = async () => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Get all contacts with emails
+      const allContacts = Object.values(contacts || {})
+        .flat()
+        .filter((contact) => contact.emails && contact.emails.length > 0);
+
+      if (allContacts.length === 0) {
+        alert("No contacts with emails to save");
+        return;
+      }
+
+      const response = await fetch("/api/save-contacts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contacts: allContacts.map((contact) => ({
+            first_name: contact.first_name,
+            last_name: contact.last_name,
+            linkedin_url: contact.linkedin_url,
+            bio: contact.bio,
+            scraped_company_id: contact.scraped_company_id,
+            emails: contact.emails.map((e) => e.email),
+          })),
+        }),
+      });
+
+      if (response.ok) {
+        alert("Contacts saved successfully to your list!");
+      } else {
+        throw new Error("Failed to save contacts");
+      }
+    } catch (error) {
+      console.error("Error saving contacts:", error);
+      alert("Failed to save contacts. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Debug logging
   console.log("SearchResults - contacts:", contacts);
@@ -149,6 +243,82 @@ export default function SearchResults() {
 
   return (
     <div className="space-y-6">
+      {!isSearching && totalContacts > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="flex justify-center  w-full"
+        >
+          {!isLoadingAuth && user ? (
+            <Card
+              className={
+                COLORS.blue.light_variant_with_border.class + " w-full"
+              }
+            >
+              <CardHeader className="flex items-center gap-4">
+                <div>
+                  <CardTitle>Save 33 contacts</CardTitle>
+                  <CardDescription>
+                    Select which list to save your contacts to for future use.
+                  </CardDescription>
+                </div>
+                <div className="ml-auto flex gap-2 items-center">
+                  {/* Add a select here to choose a list */}
+                  <Select>
+                    <SelectTrigger className="bg-muted">
+                      <SelectValue placeholder="Theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="system">System</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Button>
+                    Save
+                    <Check />
+                  </Button>
+                </div>
+              </CardHeader>
+            </Card>
+          ) : // <Button
+          //   onClick={handleSaveContacts}
+          //   disabled={isSaving}
+          //   size="lg"
+          //   className="px-8"
+          // >
+          //   {isSaving ? (
+          //     <>
+          //       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          //       Saving...
+          //     </>
+          //   ) : (
+          //     <>
+          //       <Save className="w-4 h-4 mr-2" />
+          //       Save {totalContacts} Contacts to My Lists
+          //     </>
+          //   )}
+          // </Button>
+          !isLoadingAuth ? (
+            <div className="text-center space-y-4">
+              <p className="text-muted-foreground">
+                Login to save contacts to your lists and send emails
+              </p>
+              <Button
+                onClick={() => router.push("/login")}
+                size="lg"
+                variant="outline"
+                className="px-8"
+              >
+                <LogIn className="w-4 h-4 mr-2" />
+                Login to Save Contacts
+              </Button>
+            </div>
+          ) : null}
+        </motion.div>
+      )}
       {/* Progress indicator when still searching */}
       {isSearching && (
         <motion.div
@@ -331,6 +501,8 @@ export default function SearchResults() {
             );
           })}
         </div>
+
+        {/* Save Contacts Button */}
       </motion.div>
     </div>
   );

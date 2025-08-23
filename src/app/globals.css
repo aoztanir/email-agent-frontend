@@ -173,10 +173,7 @@ html {
 
 h1,
 h2,
-h3,
-h4,
-h5,
-h6 {
+h3 {
   @apply font-serif;
   letter-spacing: 0.001em;
   font-weight: 400;
