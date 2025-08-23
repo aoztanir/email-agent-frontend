@@ -271,8 +271,10 @@ export async function POST(req: NextRequest) {
           );
 
           // Store email patterns in a map for quick lookup
+          console.log(`Generated email patterns:`, emailPatterns);
           const emailPatternsMap = new Map<string, CompanyEmailPattern>();
           emailPatterns.forEach((pattern) => {
+            console.log(`Mapping pattern for ${pattern.companyId}: ${pattern.pattern} (unsure: ${pattern.isUnsure})`);
             emailPatternsMap.set(pattern.companyId, {
               companyId: pattern.companyId,
               pattern: pattern.pattern,
@@ -344,6 +346,8 @@ export async function POST(req: NextRequest) {
             );
 
             const companyEmailPattern = emailPatternsMap.get(company.id);
+            console.log(`Company: ${company.name} (${company.id})`);
+            console.log(`Email pattern found:`, companyEmailPattern);
 
             // Process each contact result
             for (const contactResult of contactResults.slice(0, 10)) {
@@ -413,46 +417,81 @@ export async function POST(req: NextRequest) {
                   );
 
                   // Generate email using the AI-analyzed pattern
-                  let email = companyEmailPattern.pattern
-                    // Handle combined patterns like "firstnamelastname"
-                    .replace(
-                      /\bfirstnamelastname\b/g,
-                      `${firstName.toLowerCase()}${lastName.toLowerCase()}`
-                    )
-                    .replace(
-                      /\blastnamefirstname\b/g,
-                      `${lastName.toLowerCase()}${firstName.toLowerCase()}`
-                    )
-                    // Handle separated patterns
-                    .replace(/\bfirstname\b/g, firstName.toLowerCase())
-                    .replace(/\blastname\b/g, lastName.toLowerCase())
-                    .replace(/\bfirst\b/g, firstName.toLowerCase())
-                    .replace(/\blast\b/g, lastName.toLowerCase())
-                    .replace(/\bf\b/g, firstName.charAt(0).toLowerCase())
-                    .replace(/\bl\b/g, lastName.charAt(0).toLowerCase())
-                    // Handle domain replacements
-                    .replace(/domain\.com/g, company.normalized_domain)
-                    .replace(/@domain/g, `@${company.normalized_domain}`);
+                  console.log(`Original pattern: ${companyEmailPattern.pattern}`);
+                  console.log(`Company domain: ${company.normalized_domain}`);
+                  
+                  let email = companyEmailPattern.pattern;
+                  
+                  // Handle combined patterns like "firstnamelastname" FIRST - most specific  
+                  email = email.replace(/firstnamelastname/g, `${firstName.toLowerCase()}${lastName.toLowerCase()}`);
+                  email = email.replace(/lastnamefirstname/g, `${lastName.toLowerCase()}${firstName.toLowerCase()}`);
+                  
+                  // Handle individual name patterns - don't use word boundaries with underscores
+                  email = email.replace(/firstname/g, firstName.toLowerCase());
+                  email = email.replace(/lastname/g, lastName.toLowerCase());
+                  
+                  // Handle shorter patterns - but be careful not to replace parts of longer words
+                  // Only replace if it's a standalone word or part of an email pattern
+                  email = email.replace(/\bfirst\b/g, firstName.toLowerCase());
+                  email = email.replace(/\blast\b/g, lastName.toLowerCase());
+                  
+                  // Handle single letter patterns - only as standalone
+                  email = email.replace(/\bf(?=[@._-])/g, firstName.charAt(0).toLowerCase());
+                  email = email.replace(/\bl(?=[@._-])/g, lastName.charAt(0).toLowerCase());
+                  
+                  // Handle domain replacements - be more comprehensive
+                  email = email.replace(/domain\.com/g, company.normalized_domain);
+                  email = email.replace(/@domain/g, `@${company.normalized_domain}`);
+                  email = email.replace(/\bdomain\b/g, company.normalized_domain);
+                  
+                  console.log(`Email after pattern replacement: ${email}`);
 
                   // Clean up email - be more conservative about what we remove
                   email = email
                     .replace(/\s+/g, "")
-                    .replace(/[^a-z0-9@._-]/g, "");
+                    .replace(/[^a-z0-9@._\-+]/g, ""); // Allow underscores, dots, hyphens, and plus signs
 
                   console.log(`Generated email: ${email}`);
 
+                  // More comprehensive email validation
+                  const hasAt = email.includes("@");
+                  const hasDot = email.includes(".");
+                  const hasUndefined = email.includes("undefined");
+                  const hasFirstname = email.includes("firstname");
+                  const hasLastname = email.includes("lastname");
+                  const hasFirstPlaceholder = email.includes("first");
+                  const hasLastPlaceholder = email.includes("last");
+                  const hasLetterPlaceholders = email.includes(" f ") || email.includes(" l ");
+                  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+                  
+                  console.log(`Email validation for: ${email}`);
+                  console.log(`- Has @: ${hasAt}`);
+                  console.log(`- Has .: ${hasDot}`);
+                  console.log(`- Has undefined: ${hasUndefined}`);
+                  console.log(`- Has firstname: ${hasFirstname}`);
+                  console.log(`- Has lastname: ${hasLastname}`);
+                  console.log(`- Has first: ${hasFirstPlaceholder}`);
+                  console.log(`- Has last: ${hasLastPlaceholder}`);
+                  console.log(`- Matches regex: ${emailRegex.test(email)}`);
+                  
                   if (
-                    email.includes("@") &&
-                    email.includes(".") &&
-                    !email.includes("undefined") &&
-                    !email.includes("firstname") &&
-                    !email.includes("lastname")
+                    hasAt &&
+                    hasDot &&
+                    !hasUndefined &&
+                    !hasFirstname &&
+                    !hasLastname &&
+                    !hasFirstPlaceholder &&
+                    !hasLastPlaceholder &&
+                    !hasLetterPlaceholders &&
+                    emailRegex.test(email)
                   ) {
                     generatedEmails.push({ email });
+                    console.log(`✅ Valid email generated: ${email}`);
                   } else {
                     console.warn(
-                      `Invalid email generated: ${email} for pattern: ${companyEmailPattern.pattern}`
+                      `❌ Invalid email generated: ${email} for pattern: ${companyEmailPattern.pattern}`
                     );
+                    console.warn(`Reasons: hasAt=${hasAt}, hasDot=${hasDot}, hasUndefined=${hasUndefined}, hasFirstname=${hasFirstname}, hasLastname=${hasLastname}, regex=${emailRegex.test(email)}`);
                   }
                 }
 
