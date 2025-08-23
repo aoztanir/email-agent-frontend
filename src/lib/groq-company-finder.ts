@@ -50,7 +50,8 @@ export class GroqCompanyFinder {
         - Domain should be just the domain name (e.g., "example.com" not "https://example.com")
         - If no domain is known, use an empty string ""
         - Include a one sentence description of what the company does
-        - Return exactly ${limit} companies or as many as you can find`,
+        - Return exactly ${limit} companies or as many as you can find
+        `,
       });
 
       // Validate and clean the results

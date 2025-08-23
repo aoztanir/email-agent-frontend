@@ -52,7 +52,7 @@ ${companies
   )
   .join("\n")}
 
-Based ONLY on the scraped info provided above, identify the email pattern template for each company. If the scraped info contains clear email patterns, return patterns using EXACTLY these formats:
+Based on the scraped info provided above, identify the email pattern template for each company. If the scraped info contains clear email patterns, return patterns using EXACTLY these formats:
 - firstname.lastname@domain.com (for patterns like john.smith@company.com)
 - firstname@domain.com (for patterns like john@company.com)
 - f.lastname@domain.com (for patterns like j.smith@company.com)
@@ -62,9 +62,9 @@ Based ONLY on the scraped info provided above, identify the email pattern templa
 Use EXACTLY these placeholder words: firstname, lastname, f, l, firstnamelastname, domain.com.
 
 IMPORTANT: 
-- If the scraped info is empty, unclear, or does not contain enough information to confidently determine an email pattern, set pattern to 'unsure' and isUnsure to true. 
-- Only make confident predictions when you have clear evidence from the scraped data.
-- Do NOT make up patterns - only use what you can clearly identify from the scraped information.`;
+- If the scraped info is empty, unclear, or does not contain enough information to confidently determine an email pattern, see if you innately know the email pattern, especialy if it is a larger company; DO NOT give the client something incorrect though. If you are under 90% sure, set pattern to 'unsure' and isUnsure to true. 
+- Only make confident predictions when you have clear evidence from the scraped data or clear evidence from your knowledge.
+- Do NOT make up patterns - only use what you can clearly identify from the scraped information and your knowledge.`;
 
     console.log(prompt);
     const result = await generateObject({
