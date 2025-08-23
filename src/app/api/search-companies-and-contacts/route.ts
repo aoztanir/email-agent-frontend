@@ -546,12 +546,44 @@ export async function POST(req: NextRequest) {
             message: "Storing generated email addresses...",
           });
 
+          // De-duplicate contacts by both contact identity and email address
+          const uniqueContactsMap = new Map<string, {
+            contact: any;
+            generatedEmails: Array<{ email: string }>;
+          }>();
+          
+          const seenEmails = new Set<string>();
+          
+          for (const { contact, generatedEmails } of contactsWithEmails) {
+            // Create unique key based on contact name and company
+            const contactKey = `${contact.first_name}_${contact.last_name}_${contact.scraped_company_id}`;
+            
+            // Filter out emails we've already seen
+            const uniqueEmails = generatedEmails.filter(emailData => {
+              if (seenEmails.has(emailData.email)) {
+                return false; // Skip duplicate email
+              }
+              seenEmails.add(emailData.email);
+              return true;
+            });
+            
+            // Only add contact if they have unique emails and we haven't seen this contact before
+            if (uniqueEmails.length > 0 && !uniqueContactsMap.has(contactKey)) {
+              uniqueContactsMap.set(contactKey, {
+                contact,
+                generatedEmails: uniqueEmails
+              });
+            }
+          }
+          
+          console.log(`De-duplicated contacts: ${contactsWithEmails.length} → ${uniqueContactsMap.size}`);
+          
           const emailsToInsert: Array<{
             contact_id: string;
             email: string;
           }> = [];
 
-          for (const { contact, generatedEmails } of contactsWithEmails) {
+          for (const { contact, generatedEmails } of uniqueContactsMap.values()) {
             for (const emailData of generatedEmails) {
               emailsToInsert.push({
                 contact_id: contact.id,
