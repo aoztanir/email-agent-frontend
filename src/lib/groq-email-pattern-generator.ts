@@ -54,12 +54,16 @@ ${companies
 
 Based on the scraped info provided above, identify the email pattern template for each company. If the scraped info contains clear email patterns, return patterns using EXACTLY these formats:
 - firstname.lastname@domain.com (for patterns like john.smith@company.com)
+- firstname_lastname@domain.com (for patterns like john_smith@company.com)
 - firstname@domain.com (for patterns like john@company.com)
 - f.lastname@domain.com (for patterns like j.smith@company.com)
+- f_lastname@domain.com (for patterns like j_smith@company.com)
 - firstnamelastname@domain.com (for patterns like johnsmith@company.com)
 - lastname.firstname@domain.com (for patterns like smith.john@company.com)
+- lastname_firstname@domain.com (for patterns like smith_john@company.com)
 
 Use EXACTLY these placeholder words: firstname, lastname, f, l, firstnamelastname, domain.com.
+Note: Both dot (.) and underscore (_) separators are valid and commonly used patterns.
 
 IMPORTANT: 
 - If the scraped info is empty, unclear, or does not contain enough information to confidently determine an email pattern, see if you innately know the email pattern, especialy if it is a larger company; DO NOT give the client something incorrect though. If you are under 90% sure, set pattern to 'unsure' and isUnsure to true. 
