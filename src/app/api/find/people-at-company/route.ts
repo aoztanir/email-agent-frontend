@@ -5,8 +5,10 @@ import { z } from "zod";
 // Request validation schema
 const FindPeopleRequestSchema = z.object({
   amount: z.number().int().min(1).max(50).default(15),
-  companyId: z.string().uuid("Invalid company ID format"),
-  alreadyFoundContacts: z.array(z.string().uuid("Invalid contact ID format")).default([]),
+  companyId: z.uuid("Invalid company ID format"),
+  alreadyFoundContacts: z
+    .array(z.uuid("Invalid contact ID format"))
+    .default([]),
 });
 
 // SearXNG response interfaces
@@ -32,43 +34,52 @@ interface ParsedContactResult extends SearXNGResult {
 
 // Search for contacts using SearXNG
 async function searchContacts(
-  companyName: string, 
-  domain: string, 
+  companyName: string,
+  domain: string,
   alreadyFoundLinkedInUrls: string[]
 ): Promise<ParsedContactResult[]> {
   try {
     const baseUrl = process.env.SEARXNG_INSTANCE_URL || "http://localhost:8888";
-    
+
     // Build exclusion string for already found contacts
     let exclusionString = "";
     if (alreadyFoundLinkedInUrls.length > 0) {
       const usernames = alreadyFoundLinkedInUrls
-        .map(url => {
+        .map((url) => {
           const match = url.match(/linkedin\.com\/in\/([^\/]+)/);
           return match ? match[1] : null;
         })
         .filter(Boolean);
-      
+
       if (usernames.length > 0) {
-        exclusionString = usernames.map(username => `-inurl:${username}`).join(" ");
+        exclusionString = usernames
+          .map((username) => `-inurl:${username}`)
+          .join(" ");
       }
     }
 
-    const searchQuery = `site:linkedin.com/in "${companyName}" ${exclusionString}`.trim();
+    const searchQuery =
+      `site:linkedin.com/in "${companyName}" ${exclusionString}`.trim();
     const encodedQuery = encodeURIComponent(searchQuery);
     const searxngUrl = `${baseUrl}/search?q=${encodedQuery}&format=json`;
 
-    console.log(`Searching contacts for ${companyName} with query: ${searchQuery}`);
+    console.log(
+      `Searching contacts for ${companyName} with query: ${searchQuery}`
+    );
 
     const response = await fetch(searxngUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
       signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
-      console.error(`SearXNG contact search failed for ${companyName}:`, response.status);
+      console.error(
+        `SearXNG contact search failed for ${companyName}:`,
+        response.status
+      );
       return [];
     }
 
@@ -96,7 +107,9 @@ async function searchContacts(
       })
       .filter((result) => result.firstName && result.linkedinUsername); // Only keep results with valid names and usernames
 
-    console.log(`Found ${relevantResults.length} LinkedIn profiles with valid names for ${companyName}`);
+    console.log(
+      `Found ${relevantResults.length} LinkedIn profiles with valid names for ${companyName}`
+    );
 
     return relevantResults.slice(0, 15); // Return top 15 results
   } catch (error) {
@@ -106,7 +119,11 @@ async function searchContacts(
 }
 
 // Parse LinkedIn name from title
-function parseLinkedInName(title: string): { firstName: string; lastName: string; fullName: string } {
+function parseLinkedInName(title: string): {
+  firstName: string;
+  lastName: string;
+  fullName: string;
+} {
   try {
     // LinkedIn titles typically follow: "Name - Title/Company" pattern
     const nameMatch = title.match(/^(.+?)\s*-\s*/);
@@ -115,33 +132,33 @@ function parseLinkedInName(title: string): { firstName: string; lastName: string
     }
 
     let fullName = nameMatch[1].trim();
-    
+
     // Remove common patterns that aren't part of the name
     fullName = fullName
       // Remove parenthetical info like "(Sun)" or "(MBA)"
-      .replace(/\s*\([^)]*\)/g, '')
+      .replace(/\s*\([^)]*\)/g, "")
       // Remove titles like "Dr.", "Mr.", "Ms.", etc.
-      .replace(/^(Dr|Mr|Ms|Mrs|Prof|Professor)\.?\s+/i, '')
+      .replace(/^(Dr|Mr|Ms|Mrs|Prof|Professor)\.?\s+/i, "")
       // Remove suffixes like "Jr.", "Sr.", "III", etc.
-      .replace(/\s+(Jr|Sr|II|III|IV|V)\.?$/i, '')
+      .replace(/\s+(Jr|Sr|II|III|IV|V)\.?$/i, "")
       .trim();
 
     // Simple approach: remove anything after comma, period, or common separators
-    // This handles cases like "Kelley Beckett, MBA" or "Gui Batista, MBA" 
+    // This handles cases like "Kelley Beckett, MBA" or "Gui Batista, MBA"
     fullName = fullName
       // Remove everything after comma (most common case)
-      .replace(/\s*,.*$/, '')
+      .replace(/\s*,.*$/, "")
       // Remove everything after period if followed by space and capital letters (credentials)
-      .replace(/\s*\.\s+[A-Z]{2,}.*$/, '')
+      .replace(/\s*\.\s+[A-Z]{2,}.*$/, "")
       // Remove standalone credentials at the end
       .split(/\s+/)
-      .filter(word => {
+      .filter((word) => {
         // Keep word if it's not a known credential pattern
-        const cleanWord = word.replace(/[,.]$/, '');
+        const cleanWord = word.replace(/[,.]$/, "");
         // Simple heuristic: if it's all caps and 2-5 letters, likely a credential
         return !(cleanWord.match(/^[A-Z]{2,5}$/) && cleanWord.length >= 2);
       })
-      .join(' ')
+      .join(" ")
       .trim();
 
     if (!fullName) {
@@ -149,15 +166,15 @@ function parseLinkedInName(title: string): { firstName: string; lastName: string
     }
 
     // Split name into parts
-    const nameParts = fullName.split(/\s+/).filter(part => part.length > 0);
-    
+    const nameParts = fullName.split(/\s+/).filter((part) => part.length > 0);
+
     if (nameParts.length === 0) {
       return { firstName: "", lastName: "", fullName: "" };
     }
-    
+
     let firstName = nameParts[0];
     let lastName = "";
-    
+
     if (nameParts.length === 1) {
       // Single name - use as first name
       lastName = "";
@@ -169,22 +186,22 @@ function parseLinkedInName(title: string): { firstName: string; lastName: string
       // Skip middle names/initials
       firstName = nameParts[0];
       lastName = nameParts[nameParts.length - 1];
-      
+
       // Handle cases where middle part might be a preferred name or initial
       if (nameParts.length >= 3) {
         const middleParts = nameParts.slice(1, -1);
-        
+
         // Check if any middle parts are initials or credential-like patterns
-        const hasMiddleInitials = middleParts.some(part => {
-          const cleanPart = part.replace(/[,.]$/, ''); // Remove trailing comma/period
+        const hasMiddleInitials = middleParts.some((part) => {
+          const cleanPart = part.replace(/[,.]$/, ""); // Remove trailing comma/period
           return (
             cleanPart.length === 1 || // Single letter
-            part.endsWith('.') || // Letter with period
+            part.endsWith(".") || // Letter with period
             // Pattern-based detection: all caps 2-5 letters likely a credential/initial
             (cleanPart.match(/^[A-Z]{2,5}$/) && cleanPart.length >= 2)
           );
         });
-        
+
         if (hasMiddleInitials) {
           // Skip middle initials/abbreviations
           // e.g., "David M Solomon" -> David Solomon
@@ -193,31 +210,33 @@ function parseLinkedInName(title: string): { firstName: string; lastName: string
         } else if (nameParts.length === 3) {
           // Three names without initials - might be compound last name
           // e.g., "Emily Glassberg Sands" -> firstName: Emily, lastName: Glassberg Sands
-          lastName = nameParts.slice(1).join(' ');
+          lastName = nameParts.slice(1).join(" ");
         } else {
           // More than 3 parts without clear initials - take first and last
           lastName = nameParts[nameParts.length - 1];
         }
       }
     }
-    
+
     // Clean up names - remove any remaining non-alphabetic characters except hyphens
-    firstName = firstName.replace(/[^a-zA-Z-']/g, '').trim();
-    lastName = lastName.replace(/[^a-zA-Z-'\s]/g, '').trim();
-    
+    firstName = firstName.replace(/[^a-zA-Z-']/g, "").trim();
+    lastName = lastName.replace(/[^a-zA-Z-'\s]/g, "").trim();
+
     // Validate names
     if (!firstName || firstName.length < 2) {
       return { firstName: "", lastName: "", fullName: "" };
     }
-    
+
     const finalFullName = lastName ? `${firstName} ${lastName}` : firstName;
-    
-    console.log(`Parsed LinkedIn name: "${title}" -> Cleaned: "${fullName}" -> First: "${firstName}", Last: "${lastName}", Full: "${finalFullName}"`);
-    
+
+    console.log(
+      `Parsed LinkedIn name: "${title}" -> Cleaned: "${fullName}" -> First: "${firstName}", Last: "${lastName}", Full: "${finalFullName}"`
+    );
+
     return {
       firstName,
       lastName,
-      fullName: finalFullName
+      fullName: finalFullName,
     };
   } catch (error) {
     console.error(`Error parsing LinkedIn name from title: "${title}"`, error);
@@ -231,7 +250,10 @@ function extractLinkedInUsername(url: string): string {
     const match = url.match(/linkedin\.com\/in\/([^\/\?]+)/);
     return match ? match[1] : "";
   } catch (error) {
-    console.error(`Error extracting LinkedIn username from URL: "${url}"`, error);
+    console.error(
+      `Error extracting LinkedIn username from URL: "${url}"`,
+      error
+    );
     return "";
   }
 }
@@ -243,7 +265,9 @@ export async function POST(req: NextRequest) {
     const validatedData = FindPeopleRequestSchema.parse(body);
     const { amount, companyId, alreadyFoundContacts } = validatedData;
 
-    console.log(`Finding ${amount} people at company ${companyId}, excluding ${alreadyFoundContacts.length} already found contacts`);
+    console.log(
+      `Finding ${amount} people at company ${companyId}, excluding ${alreadyFoundContacts.length} already found contacts`
+    );
 
     // Step 1: Get company information
     const { data: company, error: companyError } = await supabase
@@ -256,7 +280,8 @@ export async function POST(req: NextRequest) {
       return Response.json(
         {
           error: "Company not found",
-          details: companyError?.message || "No company found with the provided ID",
+          details:
+            companyError?.message || "No company found with the provided ID",
         },
         { status: 404 }
       );
@@ -265,7 +290,8 @@ export async function POST(req: NextRequest) {
     // Step 2: Check existing contacts in database (excluding already found ones)
     let existingContactsQuery = supabase
       .from("contact")
-      .select(`
+      .select(
+        `
         id, 
         first_name, 
         last_name, 
@@ -275,21 +301,31 @@ export async function POST(req: NextRequest) {
           id,
           email
         )
-      `)
+      `
+      )
       .eq("company_id", companyId);
 
     // Exclude already found contacts if provided
     if (alreadyFoundContacts.length > 0) {
-      existingContactsQuery = existingContactsQuery.not("id", "in", `(${alreadyFoundContacts.join(",")})`);
+      existingContactsQuery = existingContactsQuery.not(
+        "id",
+        "in",
+        `(${alreadyFoundContacts.join(",")})`
+      );
     }
 
-    const { data: existingContacts, error: existingContactsError } = await existingContactsQuery;
+    const { data: existingContacts, error: existingContactsError } =
+      await existingContactsQuery;
 
     if (existingContactsError) {
-      throw new Error(`Failed to fetch existing contacts: ${existingContactsError.message}`);
+      throw new Error(
+        `Failed to fetch existing contacts: ${existingContactsError.message}`
+      );
     }
 
-    console.log(`Found ${existingContacts?.length || 0} existing contacts in database`);
+    console.log(
+      `Found ${existingContacts?.length || 0} existing contacts in database`
+    );
 
     // If we have enough existing contacts, return them
     const existingContactsCount = existingContacts?.length || 0;
@@ -305,13 +341,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 3: We need to find more contacts - get LinkedIn URLs of existing contacts
-    const existingLinkedInUrls = existingContacts
-      ?.map(contact => contact.linkedin_url)
-      .filter(url => url && url.length > 0) || [];
+    const existingLinkedInUrls =
+      existingContacts
+        ?.map((contact) => contact.linkedin_url)
+        .filter((url) => url && url.length > 0) || [];
 
     // Step 4: Search for new contacts using SearXNG
     const domain = company.normalized_domain || company.website || "";
-    const newContactResults = await searchContacts(company.name, domain, existingLinkedInUrls);
+    const newContactResults = await searchContacts(
+      company.name,
+      domain,
+      existingLinkedInUrls
+    );
 
     let newContacts: any[] = [];
 
@@ -331,8 +372,7 @@ export async function POST(req: NextRequest) {
         .from("contact")
         .upsert(contactsData, {
           onConflict: "linkedin_url,company_id", // Use our unique constraint
-        })
-        .select(`
+        }).select(`
           id, 
           first_name, 
           last_name, 

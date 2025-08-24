@@ -117,14 +117,18 @@ export async function POST(req: NextRequest) {
         ? normalizeWebsite(company.domain)
         : "";
 
-      // Skip if we've already processed this domain in this request
-      if (normalizedDomain && processedDomains.has(normalizedDomain)) {
+      // Skip companies without valid domains as they can't be uniquely identified
+      if (!normalizedDomain || normalizedDomain.trim() === "") {
+        console.log(`Skipping company "${company.name}" - no valid domain for unique identification`);
         continue;
       }
 
-      if (normalizedDomain) {
-        processedDomains.add(normalizedDomain);
+      // Skip if we've already processed this domain in this request
+      if (processedDomains.has(normalizedDomain)) {
+        continue;
       }
+
+      processedDomains.add(normalizedDomain);
 
       // Prepare company data for database
       companiesData.push({
