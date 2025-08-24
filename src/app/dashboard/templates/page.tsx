@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
+import { createClient } from "@/utils/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
@@ -34,6 +36,7 @@ import {
   Calendar,
   CheckCircle,
 } from "lucide-react";
+import { BackgroundBeams } from "@/components/magicui/background-beams";
 
 // Default template data
 const DEFAULT_TEMPLATES = [
@@ -163,9 +166,7 @@ function TemplateCard({
   onSave,
 }: TemplateCardProps) {
   return (
-    <Card
-      className={`${template.color.light_variant_with_border.class} hover:shadow-md transition-all duration-200 group cursor-pointer`}
-    >
+    <Card className="hover:shadow-md transition-all duration-200 group cursor-pointer border">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -175,28 +176,48 @@ function TemplateCard({
               {template.icon}
             </div>
             <div>
-              <CardTitle className="text-left   group-hover:text-opacity-80 transition-colors">
+              <CardTitle className="text-left group-hover:text-opacity-80 transition-colors">
                 {template.name}
               </CardTitle>
-              <CardDescription className="text-left text-sm mt-1">
+              <CardDescription className="text-left text-sm">
                 {template.description}
               </CardDescription>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {!isUserTemplate && (
-              <Badge variant="outline" className="text-xs">
+              <Badge
+                className={`text-xs ${template.color.light_variant.class} border-none`}
+              >
                 {template.category}
+              </Badge>
+            )}
+            {isUserTemplate && (
+              <Badge
+                variant="secondary"
+                className={`text-xs ${COLORS.indigo.light_variant.class} border-none`}
+              >
+                Custom
               </Badge>
             )}
             <div className="flex gap-1">
               {onEdit && (
-                <Button variant="ghost" size="sm" onClick={onEdit}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onEdit}
+                  className="hover:bg-muted/50"
+                >
                   <Edit3 className="w-4 h-4" />
                 </Button>
               )}
               {onSave && (
-                <Button variant="ghost" size="sm" onClick={onSave}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onSave}
+                  className={`hover:bg-muted/50 ${template.color.light_variant.class} hover:opacity-80`}
+                >
                   <Copy className="w-4 h-4" />
                 </Button>
               )}
@@ -205,12 +226,21 @@ function TemplateCard({
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="text-sm text-muted-foreground">
+        <div className="text-sm ">
           <strong>Subject:</strong> {template.subject}
         </div>
         <div className="text-sm text-muted-foreground mt-2 line-clamp-3">
           {template.content.slice(0, 150)}...
         </div>
+        <div
+          className={`w-full h-1 mt-3 rounded-full ${
+            template.color.light_variant.class.includes("bg-")
+              ? template.color.light_variant.class
+                  .split(" ")
+                  .find((c) => c.includes("bg-"))
+              : "bg-gray-200"
+          }`}
+        ></div>
       </CardContent>
     </Card>
   );
@@ -228,29 +258,132 @@ export default function TemplatesPage() {
     name: "",
     description: "",
     subject: "",
-    content: ""
+    content: "",
   });
-  const [userTemplates, setUserTemplates] = useState<any[]>([]);
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const supabase = createClient();
+  const queryClient = useQueryClient();
 
-  // Fetch user templates
-  useEffect(() => {
-    fetchUserTemplates();
-  }, []);
-
-  const fetchUserTemplates = async () => {
-    try {
-      const response = await fetch('/api/templates');
-      if (response.ok) {
-        const { templates } = await response.json();
-        setUserTemplates(templates || []);
+  // Fetch user templates with TanStack Query
+  const {
+    data: userTemplates = [],
+    isLoading: isLoadingTemplates,
+    error: templatesError,
+  } = useQuery({
+    queryKey: ["templates"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Please log in to view your templates");
       }
-    } catch (error) {
-      console.error('Failed to fetch templates:', error);
-    } finally {
-      setIsLoadingTemplates(false);
-    }
-  };
+
+      const { data: templates, error } = await supabase
+        .from("template")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return templates || [];
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // Handle query errors
+  if (templatesError) {
+    console.error("Error fetching templates:", templatesError);
+  }
+
+  // Create template mutation
+  const createTemplateMutation = useMutation({
+    mutationFn: async (templateData: {
+      name: string;
+      description?: string;
+      subject: string;
+      content: string;
+    }) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Please log in to save templates");
+      }
+
+      const { error } = await supabase.from("template").insert({
+        user_id: user.id,
+        name: templateData.name.trim(),
+        description: templateData.description?.trim() || null,
+        subject: templateData.subject.trim(),
+        content: templateData.content.trim(),
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    },
+    onSuccess: () => {
+      toast.success("Template created successfully!");
+      queryClient.invalidateQueries({ queryKey: ["templates"] });
+      handleCloseTemplateSheet();
+    },
+    onError: (error) => {
+      console.error("Error creating template:", error);
+      toast.error("Failed to create template");
+    },
+  });
+
+  // Update template mutation
+  const updateTemplateMutation = useMutation({
+    mutationFn: async ({
+      id,
+      templateData,
+    }: {
+      id: string;
+      templateData: {
+        name: string;
+        description?: string;
+        subject: string;
+        content: string;
+      };
+    }) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Please log in to save templates");
+      }
+
+      const { error } = await supabase
+        .from("template")
+        .update({
+          name: templateData.name.trim(),
+          description: templateData.description?.trim() || null,
+          subject: templateData.subject.trim(),
+          content: templateData.content.trim(),
+        })
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    },
+    onSuccess: () => {
+      toast.success("Template updated successfully!");
+      queryClient.invalidateQueries({ queryKey: ["templates"] });
+      handleCloseTemplateSheet();
+    },
+    onError: (error) => {
+      console.error("Error updating template:", error);
+      toast.error("Failed to update template");
+    },
+  });
 
   const handleCopyTemplate = async (
     template: (typeof DEFAULT_TEMPLATES)[0]
@@ -264,58 +397,78 @@ export default function TemplatesPage() {
     }
   };
 
-  const handleCreateTemplate = async () => {
-    try {
-      // TODO: Replace with actual Supabase call
-      const response = await fetch('/api/templates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newTemplate),
-      });
+  const handleEditTemplate = (template: any) => {
+    setEditingTemplate(template);
+    setNewTemplate({
+      name: template.name,
+      description: template.description || "",
+      subject: template.subject,
+      content: template.content,
+    });
+    setIsEditMode(true);
+    setShowCreateTemplate(true);
+  };
 
-      if (response.ok) {
-        toast.success("Template created successfully!");
-        setShowCreateTemplate(false);
-        setNewTemplate({ name: "", description: "", subject: "", content: "" });
-        fetchUserTemplates(); // Refresh templates list
-      } else {
-        toast.error("Failed to create template");
-      }
-    } catch (error) {
-      toast.error("Failed to create template");
+  const handleCreateTemplate = async () => {
+    // Validate required fields
+    if (
+      !newTemplate.name.trim() ||
+      !newTemplate.subject.trim() ||
+      !newTemplate.content.trim()
+    ) {
+      toast.error("Please fill in all required fields");
+      return;
     }
+
+    if (isEditMode) {
+      updateTemplateMutation.mutate({
+        id: editingTemplate.id,
+        templateData: newTemplate,
+      });
+    } else {
+      createTemplateMutation.mutate(newTemplate);
+    }
+  };
+
+  const handleCloseTemplateSheet = () => {
+    setShowCreateTemplate(false);
+    setNewTemplate({ name: "", description: "", subject: "", content: "" });
+    setEditingTemplate(null);
+    setIsEditMode(false);
   };
 
   const handleSaveGeneratedTemplate = async () => {
     if (!generatedTemplate) return;
-    
+
     try {
-      // TODO: Replace with actual Supabase call
-      const response = await fetch('/api/templates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: generatedTemplate.name,
-          description: generatedTemplate.description,
-          subject: generatedTemplate.subject,
-          content: generatedTemplate.content,
-        }),
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Please log in to save templates");
+        return;
+      }
+
+      const { error } = await supabase.from("template").insert({
+        user_id: user.id,
+        name: generatedTemplate.name,
+        description: generatedTemplate.description,
+        subject: generatedTemplate.subject,
+        content: generatedTemplate.content,
       });
 
-      if (response.ok) {
+      if (error) {
+        console.error("Error saving generated template:", error);
+        toast.error("Failed to save template");
+      } else {
         toast.success("Template saved successfully!");
         setShowPreview(false);
         setGeneratedTemplate(null);
         setAiPrompt("");
-        fetchUserTemplates(); // Refresh templates list
-      } else {
-        toast.error("Failed to save template");
+        queryClient.invalidateQueries({ queryKey: ["templates"] });
       }
     } catch (error) {
+      console.error("Error saving generated template:", error);
       toast.error("Failed to save template");
     }
   };
@@ -354,13 +507,14 @@ Best regards,
 
   return (
     <div className="flex h-[calc(100vh-8rem)] gap-6 ">
+      {/* <BackgroundBeams /> */}
       {/* Left Panel - Template Generator */}
       <div className="w-96">
         <Card className="h-full flex flex-col">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500/10 to-pink-500/10">
-                <Sparkles className="w-5 h-5 text-purple-600" />
+              <div className={``}>
+                <Sparkles className="w-5 h-5" />
               </div>
               <div>
                 <CardTitle className="">Template Generator</CardTitle>
@@ -392,7 +546,11 @@ Best regards,
                 value={templatePurpose}
                 onChange={(e) => setTemplatePurpose(e.target.value)}
               />
-              <Button variant="outline" size="sm" className="mt-2 text-xs">
+              <Button
+                variant="outline"
+                size="sm"
+                className={`mt-2 text-xs ${COLORS.amber.light_variant.class}`}
+              >
                 Add more details
               </Button>
             </div>
@@ -416,14 +574,12 @@ Best regards,
               <Button
                 onClick={handleGenerateTemplate}
                 disabled={!aiPrompt.trim() || isGenerating}
-                className="w-full justify-between"
-                variant="light"
-                color="amber"
+                className={`w-full justify-between ${COLORS.orange.light_variant_with_border.class} hover:opacity-80`}
               >
                 {isGenerating
                   ? "Generating template..."
                   : "Ask AI to generate this template"}
-                <Sparkles className="w-4 h-4 mr-2" />
+                <Sparkles className="w-4 h-4 ml-2" />
               </Button>
             </div>
           </CardContent>
@@ -438,7 +594,12 @@ Best regards,
               <TabsTrigger value="default">Default Templates</TabsTrigger>
               <TabsTrigger value="my-templates">My Templates</TabsTrigger>
             </TabsList>
-            <Button variant="outline" size="sm" onClick={() => setShowCreateTemplate(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCreateTemplate(true)}
+              className={`${COLORS.blue.light_variant_with_border.class}`}
+            >
               <Plus className="w-4 h-4 mr-2" />
               Create template
             </Button>
@@ -473,7 +634,9 @@ Best regards,
               <div className="h-full flex items-center justify-center">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                  <p className="text-muted-foreground">Loading your templates...</p>
+                  <p className="text-muted-foreground">
+                    Loading your templates...
+                  </p>
                 </div>
               </div>
             ) : userTemplates.length === 0 ? (
@@ -484,7 +647,8 @@ Best regards,
                   </div>
                   <h3 className="text-lg mb-2">No templates yet</h3>
                   <p className="text-muted-foreground mb-4">
-                    Save templates from defaults or create your own to get started.
+                    Save templates from defaults or create your own to get
+                    started.
                   </p>
                   <Button onClick={() => setShowCreateTemplate(true)}>
                     <Plus className="w-4 h-4 mr-2" />
@@ -511,14 +675,11 @@ Best regards,
                           ...template,
                           icon: <Mail className="w-5 h-5" />,
                           color: COLORS.indigo,
-                          category: "Custom"
+                          category: "Custom",
                         }}
                         isUserTemplate={true}
                         onSave={() => handleCopyTemplate(template)}
-                        onEdit={() => {
-                          // TODO: Implement edit functionality
-                          toast.info("Edit functionality coming soon!");
-                        }}
+                        onEdit={() => handleEditTemplate(template)}
                       />
                     </motion.div>
                   ))}
@@ -531,7 +692,10 @@ Best regards,
 
       {/* Preview Sheet */}
       <Sheet open={showPreview} onOpenChange={setShowPreview}>
-        <SheetContent side="right" className="w-[800px] sm:max-w-[800px] overflow-y-auto">
+        <SheetContent
+          side="right"
+          className="w-[800px] sm:max-w-[800px] overflow-y-auto"
+        >
           <SheetHeader>
             <SheetTitle className="text-2xl">
               Generated Template Preview
@@ -540,86 +704,88 @@ Best regards,
               Review your AI-generated template and save it to your collection
             </SheetDescription>
           </SheetHeader>
-            <div className="p-6">
-              {generatedTemplate && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <label className="text-sm font-medium block mb-2">
-                        Template Name
-                      </label>
-                      <Input value={generatedTemplate.name} readOnly />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium block mb-2">
-                        Category
-                      </label>
-                      <Badge variant="secondary">
-                        {generatedTemplate.category}
-                      </Badge>
-                    </div>
-                  </div>
-
+          <div className="p-6">
+            {generatedTemplate && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-6">
                   <div>
                     <label className="text-sm font-medium block mb-2">
-                      Subject Line
+                      Template Name
                     </label>
-                    <Input value={generatedTemplate.subject} readOnly />
+                    <Input value={generatedTemplate.name} readOnly />
                   </div>
-
                   <div>
                     <label className="text-sm font-medium block mb-2">
-                      Template Content
+                      Category
                     </label>
-                    <Textarea
-                      value={generatedTemplate.content}
-                      readOnly
-                      rows={12}
-                      className="font-mono text-sm"
-                    />
-                  </div>
-
-                  <div className="flex gap-3 pt-4">
-                    <Button
-                      onClick={handleSaveGeneratedTemplate}
-                      className="flex-1"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Save Template
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleGenerateTemplate()}
-                      disabled={isGenerating}
-                    >
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Regenerate
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => setShowPreview(false)}
-                    >
-                      Cancel
-                    </Button>
+                    <Badge variant="secondary">
+                      {generatedTemplate.category}
+                    </Badge>
                   </div>
                 </div>
-              )}
-            </div>
+
+                <div>
+                  <label className="text-sm font-medium block mb-2">
+                    Subject Line
+                  </label>
+                  <Input value={generatedTemplate.subject} readOnly />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium block mb-2">
+                    Template Content
+                  </label>
+                  <Textarea
+                    value={generatedTemplate.content}
+                    readOnly
+                    rows={12}
+                    className="font-mono text-sm"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    onClick={handleSaveGeneratedTemplate}
+                    className="flex-1"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Save Template
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleGenerateTemplate()}
+                    disabled={isGenerating}
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Regenerate
+                  </Button>
+                  <Button variant="ghost" onClick={() => setShowPreview(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </SheetContent>
       </Sheet>
 
       {/* Create Template Sheet */}
       <Sheet open={showCreateTemplate} onOpenChange={setShowCreateTemplate}>
-        <SheetContent side="right" className="w-[600px] sm:max-w-[600px] overflow-y-auto">
+        <SheetContent
+          side="right"
+          className="w-[600px] sm:max-w-[600px] overflow-y-auto"
+        >
           <SheetHeader>
-            <SheetTitle className="text-2xl">
-              Create New Template
+            <SheetTitle className="text-2xl !font-sans">
+              {isEditMode ? "Edit Template" : "Create New Template"}
             </SheetTitle>
             <SheetDescription>
-              Create a custom email template for your campaigns
+              {isEditMode
+                ? "Update your email template"
+                : "Create a custom email template for your campaigns"}
             </SheetDescription>
           </SheetHeader>
-          <div className="mt-6 space-y-6">
+          <div className="mt-6 space-y-6 px-4">
             <div>
               <label className="text-sm font-medium block mb-2">
                 Template Name
@@ -627,10 +793,12 @@ Best regards,
               <Input
                 placeholder="e.g., Cold Outreach for SaaS"
                 value={newTemplate.name}
-                onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                onChange={(e) =>
+                  setNewTemplate({ ...newTemplate, name: e.target.value })
+                }
               />
             </div>
-            
+
             <div>
               <label className="text-sm font-medium block mb-2">
                 Description
@@ -638,10 +806,15 @@ Best regards,
               <Input
                 placeholder="Brief description of when to use this template"
                 value={newTemplate.description}
-                onChange={(e) => setNewTemplate({ ...newTemplate, description: e.target.value })}
+                onChange={(e) =>
+                  setNewTemplate({
+                    ...newTemplate,
+                    description: e.target.value,
+                  })
+                }
               />
             </div>
-            
+
             <div>
               <label className="text-sm font-medium block mb-2">
                 Subject Line
@@ -649,10 +822,12 @@ Best regards,
               <Input
                 placeholder="e.g., Quick question about [Company name]"
                 value={newTemplate.subject}
-                onChange={(e) => setNewTemplate({ ...newTemplate, subject: e.target.value })}
+                onChange={(e) =>
+                  setNewTemplate({ ...newTemplate, subject: e.target.value })
+                }
               />
             </div>
-            
+
             <div>
               <label className="text-sm font-medium block mb-2">
                 Template Content
@@ -660,31 +835,41 @@ Best regards,
               <Textarea
                 placeholder="Write your email template here. Use brackets for AI placeholders like [Individual's Name], [Company name], [1-2 details about the company], etc."
                 value={newTemplate.content}
-                onChange={(e) => setNewTemplate({ ...newTemplate, content: e.target.value })}
+                onChange={(e) =>
+                  setNewTemplate({ ...newTemplate, content: e.target.value })
+                }
                 rows={12}
                 className="resize-none"
               />
               <p className="text-xs text-muted-foreground mt-2">
-                Tip: Use brackets like [Individual's Name], [Company name], [Personal detail about the individual] for AI placeholders
+                Tip: Use brackets like [Individual's Name], [Company name],
+                [Personal detail about the individual] for AI placeholders
               </p>
             </div>
-            
+
             <div className="flex gap-3 pt-4">
               <Button
                 onClick={handleCreateTemplate}
                 className="flex-1"
-                disabled={!newTemplate.name || !newTemplate.subject || !newTemplate.content}
+                disabled={
+                  !newTemplate.name ||
+                  !newTemplate.subject ||
+                  !newTemplate.content ||
+                  createTemplateMutation.isPending ||
+                  updateTemplateMutation.isPending
+                }
               >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Create Template
+                <CheckCircle className="w-4 h-4 mr-2 " />
+                {createTemplateMutation.isPending ||
+                updateTemplateMutation.isPending
+                  ? isEditMode
+                    ? "Updating..."
+                    : "Creating..."
+                  : isEditMode
+                  ? "Update Template"
+                  : "Create Template"}
               </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setShowCreateTemplate(false);
-                  setNewTemplate({ name: "", description: "", subject: "", content: "" });
-                }}
-              >
+              <Button variant="ghost" onClick={handleCloseTemplateSheet}>
                 Cancel
               </Button>
             </div>

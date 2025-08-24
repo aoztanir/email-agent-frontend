@@ -57,7 +57,7 @@ export function DashboardHeader() {
   };
 
   return (
-    <header className="border-b bg-card px-6 py-3">
+    <header className="border-b bg-card px-3 py-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <SidebarTrigger />
