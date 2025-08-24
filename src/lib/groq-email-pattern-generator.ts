@@ -8,12 +8,7 @@ const EmailPatternSchema = z.object({
   pattern: z
     .string()
     .describe(
-      "Single most likely email pattern using standard formats like 'firstname.lastname@domain.com', 'firstname_lastname@domain.com', 'f.lastname@domain.com', 'firstnamelastname@domain.com', etc. or 'unsure' if uncertain"
-    ),
-  isUnsure: z
-    .boolean()
-    .describe(
-      "True if AI is uncertain about the email pattern based on scraped data"
+      "Single most likely email pattern using standard formats like 'firstname.lastname@domain.com', 'firstname_lastname@domain.com', 'f.lastname@domain.com', 'firstnamelastname@domain.com', etc."
     ),
 });
 
@@ -32,7 +27,6 @@ export interface GeneratedEmailPatterns {
   companyId: string;
   name: string;
   pattern: string;
-  isUnsure: boolean;
 }
 
 const model = groq("moonshotai/kimi-k2-instruct");
@@ -63,9 +57,8 @@ Use placeholders: firstname, lastname, f, l, firstnamelastname, lastnamefirstnam
 
 Rules:
 - Use actual company domain (e.g. firstname_lastname@vanguard.com)
-- If unsure or <90% confident, set pattern='unsure' and isUnsure=true
 - Large companies: prefer firstname.lastname or firstname_lastname formats
-- Only use patterns you can identify from data or knowledge`;
+- Only use patterns you can identify from the above data or your knowledge`;
 
     console.log(prompt);
     const result = await generateObject({
@@ -84,8 +77,7 @@ Rules:
     return companies.map((company) => ({
       companyId: company.id,
       name: company.name,
-      pattern: "unsure",
-      isUnsure: true,
+      pattern: "firstname.lastname@" + company.domain,
     }));
   }
 }

@@ -3,7 +3,7 @@ import {
   generateEmailPatternsWithGroq,
 } from "@/lib/groq-email-pattern-generator";
 import { GroqCompanyFinder } from "@/lib/groq-company-finder";
-import { SearXNGService } from "@/lib/searxng-service";
+import { SearXNGService, ParsedContactResult } from "@/lib/searxng-service";
 import { supabase } from "@/lib/supabase";
 import { NextRequest } from "next/server";
 
@@ -25,7 +25,6 @@ interface StoredCompany {
 interface CompanyEmailPattern {
   companyId: string;
   pattern: string;
-  isUnsure: boolean;
 }
 
 function normalizeWebsite(website?: string): string {
@@ -144,27 +143,20 @@ export async function POST(req: NextRequest) {
                 companiesStreamedCount++;
 
                 // Prepare company for database
-                const scrapedCompany = {
+                const companyData = {
                   name: company.name || "",
                   address: company.address || "",
                   website: company.domain || "",
                   normalized_domain: normalizedDomain,
                   phone_number: "", // Groq doesn't provide phone numbers
-                  reviews_count: null,
-                  reviews_average: null,
-                  store_shopping: "Unknown",
-                  in_store_pickup: "Unknown",
-                  store_delivery: "Unknown",
-                  place_type: "",
-                  opens_at: "",
                   introduction: company.description || "",
                 };
 
                 // Insert company immediately
                 const { data: companyResult, error: companyError } =
                   await supabase
-                    .from("scraped_company")
-                    .upsert([scrapedCompany], {
+                    .from("company")
+                    .upsert([companyData], {
                       onConflict: "normalized_domain",
                     })
                     .select()
@@ -219,13 +211,13 @@ export async function POST(req: NextRequest) {
           if (discoveredCompanies.length > 0) {
             const relationships = discoveredCompanies.map((company) => ({
               prompt_id: promptId,
-              scraped_company_id: company.id,
+              company_id: company.id,
             }));
 
             await supabase
-              .from("prompt_to_scraped_company")
+              .from("prompt_to_company")
               .upsert(relationships, {
-                onConflict: "prompt_id,scraped_company_id",
+                onConflict: "prompt_id,company_id",
               });
           }
 
@@ -274,11 +266,10 @@ export async function POST(req: NextRequest) {
           console.log(`Generated email patterns:`, emailPatterns);
           const emailPatternsMap = new Map<string, CompanyEmailPattern>();
           emailPatterns.forEach((pattern) => {
-            console.log(`Mapping pattern for ${pattern.companyId}: ${pattern.pattern} (unsure: ${pattern.isUnsure})`);
+            console.log(`Mapping pattern for ${pattern.companyId}: ${pattern.pattern}`);
             emailPatternsMap.set(pattern.companyId, {
               companyId: pattern.companyId,
               pattern: pattern.pattern,
-              isUnsure: pattern.isUnsure,
             });
           });
 
@@ -302,36 +293,20 @@ export async function POST(req: NextRequest) {
               id: string;
               first_name: string;
               last_name: string | null;
-              scraped_company_id: string;
+              company_id: string;
               linkedin_url: string | null;
               bio: string | null;
             };
             generatedEmails: Array<{ email: string }>;
           }> = [];
 
-          // Filter out companies where AI is unsure about email patterns
+          // Use all companies with patterns
           const companiesWithCertainPatterns = discoveredCompanies.filter(
             (company) => {
               const pattern = emailPatternsMap.get(company.id);
-              return pattern && !pattern.isUnsure;
+              return pattern;
             }
           );
-
-          const companiesWithUnsurePatterns = discoveredCompanies.filter(
-            (company) => {
-              const pattern = emailPatternsMap.get(company.id);
-              return pattern && pattern.isUnsure;
-            }
-          );
-
-          // Send info about companies skipped due to uncertain patterns
-          if (companiesWithUnsurePatterns.length > 0) {
-            sendSSE({
-              type: "uncertain_patterns",
-              message: `Skipping contact discovery for ${companiesWithUnsurePatterns.length} companies due to uncertain email patterns`,
-              companies: companiesWithUnsurePatterns.map((c) => c.name),
-            });
-          }
 
           for (const company of companiesWithCertainPatterns) {
             sendSSE({
@@ -362,7 +337,7 @@ export async function POST(req: NextRequest) {
                 const { data: existingContact } = await supabase
                   .from("contact")
                   .select("*")
-                  .eq("scraped_company_id", company.id)
+                  .eq("company_id", company.id)
                   .eq("linkedin_url", contactResult.url)
                   .single();
 
@@ -374,7 +349,7 @@ export async function POST(req: NextRequest) {
                 } else {
                   // Create new contact
                   const newContactData = {
-                    scraped_company_id: company.id,
+                    company_id: company.id,
                     first_name: firstName,
                     last_name: lastName || null,
                     linkedin_url: contactResult.url.includes("linkedin.com")
@@ -409,8 +384,7 @@ export async function POST(req: NextRequest) {
 
                 if (
                   companyEmailPattern &&
-                  contactData &&
-                  !companyEmailPattern.isUnsure
+                  contactData
                 ) {
                   console.log(
                     `Generating email for ${firstName} ${lastName} using pattern: ${companyEmailPattern.pattern}`
@@ -556,7 +530,7 @@ export async function POST(req: NextRequest) {
           
           for (const { contact, generatedEmails } of contactsWithEmails) {
             // Create unique key based on contact name and company
-            const contactKey = `${contact.first_name}_${contact.last_name}_${contact.scraped_company_id}`;
+            const contactKey = `${contact.first_name}_${contact.last_name}_${contact.company_id}`;
             
             // Filter out emails we've already seen
             const uniqueEmails = generatedEmails.filter(emailData => {
@@ -624,8 +598,7 @@ export async function POST(req: NextRequest) {
               contactsFound: totalContactsFound,
               emailsGenerated: emailsToInsert.length,
               emailPatternsGenerated: emailPatterns.length,
-              companiesWithCertainPatterns: companiesWithCertainPatterns.length,
-              companiesWithUnsurePatterns: companiesWithUnsurePatterns.length,
+              companiesWithPatterns: companiesWithCertainPatterns.length,
             },
           });
 

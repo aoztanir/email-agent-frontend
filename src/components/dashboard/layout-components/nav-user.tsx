@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import {
   CreditCard,
@@ -6,13 +6,9 @@ import {
   LogOut,
   Bell,
   UserCircle,
-} from "lucide-react"
+} from "lucide-react";
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,66 +17,123 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar"
-import { supabase } from "@/lib/supabase"
-import { useEffect, useState } from "react"
-import { User } from "@supabase/supabase-js"
+} from "@/components/ui/sidebar";
+import { createClient } from "@/utils/supabase/client";
+import { useEffect, useState } from "react";
 
 interface UserData {
-  name: string
-  email: string
-  avatar: string
+  name: string;
+  email: string;
+  avatar: string;
 }
 
 export function NavUser() {
-  const { isMobile } = useSidebar()
-  const [user, setUser] = useState<UserData | null>(null)
+  const { isMobile } = useSidebar();
+  const [user, setUser] = useState<UserData | null>(null);
+  const supabase = createClient();
 
   useEffect(() => {
     // Get current user
     const getCurrentUser = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      
-      if (authUser) {
-        setUser({
-          name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
-          email: authUser.email || '',
-          avatar: authUser.user_metadata?.avatar_url || ''
-        })
-      } else {
-        // Fallback for demo purposes
-        setUser({
-          name: 'Demo User',
-          email: 'demo@example.com',
-          avatar: ''
-        })
-      }
-    }
+      try {
+        console.log("Checking Supabase auth...");
+        const {
+          data: { user: authUser },
+          error: authError,
+        } = await supabase.auth.getUser();
 
-    getCurrentUser()
-  }, [])
+        console.log("Auth user:", authUser);
+        console.log("Auth error:", authError);
+
+        if (authError) {
+          console.error("Supabase auth error:", authError);
+          setUser({
+            name: "Demo User",
+            email: "demo@example.com",
+            avatar: "",
+          });
+          return;
+        }
+
+        if (authUser) {
+          console.log("Setting authenticated user");
+          setUser({
+            name:
+              authUser.user_metadata?.full_name ||
+              authUser.email?.split("@")[0] ||
+              "User",
+            email: authUser.email || "",
+            avatar: authUser.user_metadata?.avatar_url || "",
+          });
+        } else {
+          console.log("No authenticated user found, using demo user");
+          // Fallback for demo purposes
+          setUser({
+            name: "Demo User",
+            email: "demo@example.com",
+            avatar: "",
+          });
+        }
+      } catch (error) {
+        console.error("Error getting user:", error);
+        setUser({
+          name: "Demo User",
+          email: "demo@example.com",
+          avatar: "",
+        });
+      }
+    };
+
+    getCurrentUser();
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth state changed:", event, session?.user);
+      if (session?.user) {
+        setUser({
+          name:
+            session.user.user_metadata?.full_name ||
+            session.user.email?.split("@")[0] ||
+            "User",
+          email: session.user.email || "",
+          avatar: session.user.user_metadata?.avatar_url || "",
+        });
+      } else {
+        setUser({
+          name: "Demo User",
+          email: "demo@example.com",
+          avatar: "",
+        });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/'
-  }
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
 
   if (!user) {
-    return null
+    return null;
   }
 
   const initials = user.name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
     .toUpperCase()
-    .substring(0, 2)
+    .substring(0, 2);
 
   return (
     <SidebarMenu>
@@ -93,7 +146,9 @@ export function NavUser() {
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+                <AvatarFallback className="rounded-lg">
+                  {initials}
+                </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
@@ -114,7 +169,9 @@ export function NavUser() {
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+                  <AvatarFallback className="rounded-lg">
+                    {initials}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
@@ -148,5 +205,5 @@ export function NavUser() {
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
-  )
+  );
 }

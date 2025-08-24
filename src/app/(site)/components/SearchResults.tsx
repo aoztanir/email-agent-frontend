@@ -161,7 +161,7 @@ export default function SearchResults() {
             last_name: contact.last_name,
             linkedin_url: contact.linkedin_url,
             bio: contact.bio,
-            scraped_company_id: contact.scraped_company_id,
+            company_id: contact.company_id,
             emails: contact.emails.map((e) => e.email),
           })),
         }),

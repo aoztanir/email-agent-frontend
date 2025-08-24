@@ -6,7 +6,7 @@ interface ContactToSave {
   last_name: string | null;
   linkedin_url?: string | null;
   bio?: string | null;
-  scraped_company_id: string;
+  company_id: string;
   emails: string[];
 }
 
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
           .select('id')
           .eq('first_name', contactData.first_name)
           .eq('last_name', contactData.last_name || '')
-          .eq('scraped_company_id', contactData.scraped_company_id)
+          .eq('company_id', contactData.company_id)
           .single();
 
         let contactId: string;
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
               last_name: contactData.last_name,
               linkedin_url: contactData.linkedin_url,
               bio: contactData.bio,
-              scraped_company_id: contactData.scraped_company_id,
+              company_id: contactData.company_id,
             })
             .select('id')
             .single();
@@ -89,10 +89,7 @@ export async function POST(req: NextRequest) {
               .from('contact_email')
               .insert({
                 contact_id: contactId,
-                email: email,
-                confidence: 'pattern_generated',
-                is_deliverable: null,
-                validation_status: 'pending'
+                email: email
               });
 
             if (!emailError) {

@@ -6,9 +6,9 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Types for our database entities
-// Note: Company table removed - using ScrapedCompany as the unified table
+// Company table unified - all company data stored here
 
-export interface ScrapedCompany {
+export interface Company {
   id: string
   name: string
   address?: string
@@ -35,16 +35,16 @@ export interface Prompt {
   created_at: string
 }
 
-export interface PromptToScrapedCompany {
+export interface PromptToCompany {
   id: string
   prompt_id: string
-  scraped_company_id: string
+  company_id: string
   created_at: string
 }
 
 export interface Contact {
   id: string
-  scraped_company_id: string
+  company_id: string
   first_name: string
   last_name?: string
   email?: string
@@ -54,51 +54,12 @@ export interface Contact {
   updated_at: string
 }
 
-export interface ContactGroup {
-  id: string
-  name: string
-  description?: string
-  color: string
-  created_at: string
-  updated_at: string
-}
-
-export interface ContactGroupMember {
-  id: string
-  group_id: string
-  contact_id: string
-  added_at: string
-}
-
 export interface ContactEmail {
   id: string
   contact_id: string
   email: string
-  confidence: number
-  validation_status: string
-  is_valid?: boolean
-  is_deliverable?: boolean
-  found_by?: string
   created_at: string
   updated_at: string
-}
-
-export interface ScrapeJob {
-  id: string
-  name: string
-  company_ids: string[]
-  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled'
-  total_companies: number
-  processed_companies: number
-  total_contacts_found: number
-  contacts_per_company: number
-  group_id?: string
-  created_at: string
-  started_at?: string
-  completed_at?: string
-  error_message?: string
-  current_company_id?: string
-  current_company_name?: string
 }
 
 // Check if Supabase is properly configured
@@ -113,7 +74,7 @@ const isSupabaseConfigured = () => {
   return true
 }
 
-// Database utility functions - Updated for unified scraped_company schema
+// Database utility functions - Updated for unified company schema
 export const dbUtils = {
   // Create a new prompt
   async createPrompt(query_text: string, total_requested: number = 20, total_found: number = 0) {
@@ -147,24 +108,24 @@ export const dbUtils = {
     return data as Prompt
   },
 
-  // Create or get existing scraped company by normalized_domain
-  async upsertScrapedCompany(companyData: Omit<ScrapedCompany, 'id' | 'created_at' | 'updated_at'>) {
+  // Create or get existing company by normalized_domain
+  async upsertCompany(companyData: Omit<Company, 'id' | 'created_at' | 'updated_at'>) {
     const { data, error } = await supabase
-      .from('scraped_company')
+      .from('company')
       .upsert([companyData], { onConflict: 'normalized_domain' })
       .select()
       .single()
     
     if (error) throw error
-    return data as ScrapedCompany
+    return data as Company
   },
 
-  // Create relationship between prompt and scraped company
-  async linkPromptToScrapedCompany(promptId: string, scrapedCompanyId: string) {
+  // Create relationship between prompt and company
+  async linkPromptToCompany(promptId: string, companyId: string) {
     const { data, error } = await supabase
-      .from('prompt_to_scraped_company')
-      .upsert([{ prompt_id: promptId, scraped_company_id: scrapedCompanyId }], { 
-        onConflict: 'prompt_id,scraped_company_id',
+      .from('prompt_to_company')
+      .upsert([{ prompt_id: promptId, company_id: companyId }], { 
+        onConflict: 'prompt_id,company_id',
         ignoreDuplicates: true 
       })
       .select()
@@ -175,25 +136,18 @@ export const dbUtils = {
     return data
   },
 
-  // Get scraped companies for a specific prompt
-  async getScrapedCompaniesByPrompt(promptId: string) {
+  // Get companies for a specific prompt
+  async getCompaniesByPrompt(promptId: string) {
     const { data, error } = await supabase
-      .from('prompt_to_scraped_company')
+      .from('prompt_to_company')
       .select(`
-        scraped_company (
+        company (
           id,
           name,
           address,
           website,
           normalized_domain,
           phone_number,
-          reviews_count,
-          reviews_average,
-          store_shopping,
-          in_store_pickup,
-          store_delivery,
-          place_type,
-          opens_at,
           introduction,
           created_at,
           updated_at
@@ -202,16 +156,16 @@ export const dbUtils = {
       .eq('prompt_id', promptId)
     
     if (error) throw error
-    return data.map(item => item.scraped_company) as ScrapedCompany[]
+    return data.map(item => item.company) as Company[]
   },
 
-  // Get all prompts with their scraped company counts
+  // Get all prompts with their company counts
   async getAllPromptsWithCounts() {
     const { data, error } = await supabase
       .from('prompt')
       .select(`
         *,
-        prompt_to_scraped_company(count)
+        prompt_to_company(count)
       `)
       .order('created_at', { ascending: false })
     

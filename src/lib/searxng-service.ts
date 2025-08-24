@@ -5,6 +5,12 @@ interface SearXNGResult {
   score?: number;
 }
 
+interface ParsedContactResult extends SearXNGResult {
+  firstName: string;
+  lastName: string;
+  fullName: string;
+}
+
 interface SearXNGResponse {
   results: SearXNGResult[];
   query: string;
@@ -18,6 +24,8 @@ export interface EmailPatternResult {
   rawPatternText: string;
   extractedPatterns: string[];
 }
+
+export { ParsedContactResult };
 
 export class SearXNGService {
   private baseUrl: string;
@@ -94,7 +102,7 @@ export class SearXNGService {
   async searchContacts(
     companyName: string,
     domain: string
-  ): Promise<SearXNGResult[]> {
+  ): Promise<ParsedContactResult[]> {
     try {
       // Use single simple LinkedIn query
       const searchQuery = `site:linkedin.com/in "${companyName}"`;

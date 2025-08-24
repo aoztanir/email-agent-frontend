@@ -40,11 +40,31 @@ This is a **Next.js 15 frontend** for an email mining application that discovers
 - **Database**: Direct Supabase queries for simple operations, API routes for complex scraping
 
 **Database Schema** (Supabase PostgreSQL):
-- `scraped_company` - Company data with normalized domains for deduplication
+
+**Core Data Tables**:
+- `prompt` - Search queries and results tracking
+- `company` - Company data with normalized domains for deduplication (renamed from scraped_company)
+- `prompt_to_company` - Query-company relationships
 - `contact` - Individual contacts linked to companies
 - `contact_email` - Generated email addresses with confidence scores and status
-- `prompt` - Search queries and results tracking
-- `prompt_to_scraped_company` - Query-company relationships
+
+**Email Campaign System**:
+- `template` - Reusable email templates with AI placeholders like [company details], [individual's name], [personal detail about the individual]
+- `contact_list` - Named collections of contacts for bulk campaigns (e.g., "Potential Clients", "Follow-up Prospects")
+- `contact_list_member` - Junction table linking contacts to contact lists (many-to-many)
+- `email_batch` - Bulk email campaigns targeting contact lists and/or individual contacts with multiple template options
+- `email_batch_template` - Links multiple template options to email batches (allows template variants)
+- `email_batch_contact_list` - Links entire contact lists to batches (auto-adds all contacts in list)
+- `email_batch_individual_contact` - Links individual contacts to batches (for manual selection)
+- `email` - Individual email records with AI-generated personalized content and delivery tracking
+
+**Email Campaign Workflow**:
+1. Create templates with AI placeholders in brackets
+2. Organize contacts into reusable contact lists
+3. Create email batch and select template options
+4. Add contact lists (auto-includes all contacts) and/or individual contacts
+5. System processes batch → generates personalized emails with AI-filled placeholders
+6. Track delivery status and engagement metrics
 
 ### New AI-Powered Email Discovery System
 

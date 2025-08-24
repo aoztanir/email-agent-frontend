@@ -28,7 +28,7 @@ interface NavItem {
 export function DashboardSidebar() {
   const { setOpen } = useSidebar();
   const pathname = usePathname();
-  
+
   const navItems: NavItem[] = [
     {
       icon: <Search className="w-4 h-4" />,
@@ -42,12 +42,12 @@ export function DashboardSidebar() {
     },
     {
       icon: <Mail className="w-4 h-4" />,
-      label: "Echo Mail",
-      href: "/dashboard/emails/echo",
+      label: "Send emails",
+      href: "/dashboard/send-emails",
     },
     {
       icon: <FileText className="w-4 h-4" />,
-      label: "My Templates",
+      label: "Templates",
       href: "/dashboard/templates",
     },
   ];
@@ -61,14 +61,17 @@ export function DashboardSidebar() {
   };
 
   return (
-    <Sidebar 
-      collapsible="icon" 
+    <Sidebar
+      collapsible="icon"
       className="group/sidebar"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
       <SidebarHeader>
-        <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+        <SidebarMenuButton
+          size="lg"
+          className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+        >
           <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Mail className="size-4" />
           </div>
@@ -84,7 +87,7 @@ export function DashboardSidebar() {
             <SidebarMenu>
               {navItems.map((item, index) => (
                 <SidebarMenuItem key={index}>
-                  <SidebarMenuButton 
+                  <SidebarMenuButton
                     asChild
                     tooltip={item.label}
                     isActive={pathname === item.href}
