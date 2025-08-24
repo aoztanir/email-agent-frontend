@@ -5,6 +5,7 @@ import {
 import { GroqCompanyFinder } from "@/lib/groq-company-finder";
 import { SearXNGService, ParsedContactResult } from "@/lib/searxng-service";
 import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/server";
 import { NextRequest } from "next/server";
 
 interface CompanySearchRequest {
@@ -84,8 +85,12 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-real-ip") ||
       undefined;
 
+    // Check if user is authenticated (but allow anonymous searches)
+    const userSupabase = await createClient();
+    const { data: { user } } = await userSupabase.auth.getUser();
+    
     console.log(
-      `Received request: query="${query}", total=${total}, userIP=${userIP}`
+      `Received request: query="${query}", total=${total}, userIP=${userIP}, authenticated=${!!user}`
     );
 
     // Create a readable stream for Server-Sent Events
@@ -188,11 +193,12 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // Store the prompt data
+          // Store the prompt data with user_id if authenticated
           const promptData = {
             query_text: query,
             total_requested: total,
             total_found: companiesStreamedCount,
+            user_id: user?.id || null, // Allow null for anonymous searches
           };
 
           const { data: promptResult, error: promptError } = await supabase
@@ -207,17 +213,19 @@ export async function POST(req: NextRequest) {
 
           const promptId = promptResult.id;
 
-          // Create prompt-company relationships
-          if (discoveredCompanies.length > 0) {
+          // Create user-company relationships for logged-in users
+          // Anonymous searches won't have user_id in prompt, so skip this step
+          if (discoveredCompanies.length > 0 && promptResult.user_id) {
             const relationships = discoveredCompanies.map((company) => ({
-              prompt_id: promptId,
+              user_id: promptResult.user_id,
               company_id: company.id,
+              source_prompt_id: promptId,
             }));
 
             await supabase
-              .from("prompt_to_company")
+              .from("user_company")
               .upsert(relationships, {
-                onConflict: "prompt_id,company_id",
+                onConflict: "user_id,company_id",
               });
           }
 

@@ -49,6 +49,7 @@ interface SearchState {
   currentStage: string;
   selectedCompany: Company | null;
   isModalOpen: boolean;
+  currentPromptId: string | null;
 
   // Actions
   addCompany: (company: Company) => void;
@@ -70,6 +71,7 @@ interface SearchState {
   setCurrentStage: (stage: string) => void;
   setSelectedCompany: (company: Company | null) => void;
   setIsModalOpen: (isOpen: boolean) => void;
+  setCurrentPromptId: (promptId: string | null) => void;
   clearResults: () => void;
 }
 
@@ -85,6 +87,7 @@ export const useSearchStore = create<SearchState>((set) => ({
   currentStage: "",
   selectedCompany: null,
   isModalOpen: false,
+  currentPromptId: null,
 
   addCompany: (company) =>
     set((state) => ({
@@ -121,6 +124,7 @@ export const useSearchStore = create<SearchState>((set) => ({
   setCurrentStage: (currentStage) => set({ currentStage }),
   setSelectedCompany: (selectedCompany) => set({ selectedCompany }),
   setIsModalOpen: (isModalOpen) => set({ isModalOpen }),
+  setCurrentPromptId: (currentPromptId) => set({ currentPromptId }),
   clearResults: () =>
     set({
       companies: [],
@@ -131,5 +135,6 @@ export const useSearchStore = create<SearchState>((set) => ({
       currentStage: "",
       selectedCompany: null,
       isModalOpen: false,
+      currentPromptId: null,
     }),
 }));

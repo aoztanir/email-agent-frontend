@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Building,
   Users,
@@ -9,13 +11,11 @@ import {
   Loader2,
   ExternalLink,
   AlertTriangle,
-  Save,
   LogIn,
   Check,
 } from "lucide-react";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -69,6 +69,7 @@ export default function SearchResults() {
   const [user, setUser] = useState<any>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedListId, setSelectedListId] = useState<string>("");
 
   const {
     companies,
@@ -76,11 +77,27 @@ export default function SearchResults() {
     companiesWithUncertainPatterns,
     isSearching,
     currentStatus,
-    currentStage,
+    currentPromptId,
     setSelectedCompany,
     setIsModalOpen,
   } = useSearchStore();
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+
+  // Fetch contact lists
+  const { data: contactLists = [], isLoading: isLoadingLists } = useQuery({
+    queryKey: ["contact-lists", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("contact_list")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
 
   // Check authentication status
   useEffect(() => {
@@ -95,7 +112,7 @@ export default function SearchResults() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 
@@ -119,9 +136,7 @@ export default function SearchResults() {
       (count, contact) =>
         count +
         contact.emails.filter(
-          (email) =>
-            email.is_deliverable === true ||
-            email.confidence === "pattern_generated"
+          (email) => email.is_deliverable === true
         ).length,
       0
     );
@@ -138,51 +153,199 @@ export default function SearchResults() {
       return;
     }
 
+    if (!selectedListId) {
+      toast.error("Please select a contact list to save to");
+      return;
+    }
+
     setIsSaving(true);
     try {
+      const supabase = createClient();
+
       // Get all contacts with emails
       const allContacts = Object.values(contacts || {})
         .flat()
         .filter((contact) => contact.emails && contact.emails.length > 0);
 
       if (allContacts.length === 0) {
-        alert("No contacts with emails to save");
+        toast.error("No contacts with emails to save");
         return;
       }
 
-      const response = await fetch("/api/save-contacts", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contacts: allContacts.map((contact) => ({
-            first_name: contact.first_name,
-            last_name: contact.last_name,
-            linkedin_url: contact.linkedin_url,
-            bio: contact.bio,
-            company_id: contact.company_id,
-            emails: contact.emails.map((e) => e.email),
-          })),
-        }),
-      });
+      console.log('Debug: About to save contacts:', allContacts.length);
+      console.log('Debug: Sample contact:', allContacts[0]);
 
-      if (response.ok) {
-        alert("Contacts saved successfully to your list!");
+      let savedContactsCount = 0;
+      let savedEmailsCount = 0;
+      let addedToListCount = 0;
+
+      // First, ensure companies are saved in user_company relationships
+      const companyIds = [
+        ...new Set(allContacts.map((contact) => contact.company_id)),
+      ];
+      for (const companyId of companyIds) {
+        const { error: companyError } = await supabase
+          .from("user_company")
+          .upsert(
+            {
+              user_id: user.id,
+              company_id: companyId,
+              source_prompt_id: currentPromptId || null,
+            },
+            {
+              onConflict: "user_id,company_id",
+            }
+          );
+
+        if (companyError) {
+          console.error("Error saving company relationship:", companyError);
+        }
+      }
+
+      // Process each contact
+      for (const contactData of allContacts) {
+        try {
+          console.log('Debug: Processing contact:', contactData.first_name, contactData.last_name);
+          // Check if contact already exists
+          const { data: existingContact } = await supabase
+            .from("contact")
+            .select("id")
+            .eq("first_name", contactData.first_name)
+            .eq("last_name", contactData.last_name || "")
+            .eq("company_id", contactData.company_id)
+            .maybeSingle();
+
+          let contactId: string;
+
+          if (existingContact) {
+            // Use existing contact
+            contactId = existingContact.id;
+            console.log('Debug: Using existing contact:', contactId);
+          } else {
+            // Create new contact (normalized - no user_id)
+            const { data: newContact, error: contactError } = await supabase
+              .from("contact")
+              .insert({
+                first_name: contactData.first_name,
+                last_name: contactData.last_name,
+                linkedin_url: contactData.linkedin_url,
+                company_id: contactData.company_id,
+              })
+              .select("id")
+              .single();
+
+            if (contactError || !newContact) {
+              console.error("Error creating contact:", contactError);
+              continue;
+            }
+
+            contactId = newContact.id;
+            savedContactsCount++;
+            console.log('Debug: Created new contact:', contactId);
+          }
+
+          // Create user-contact relationship
+          const { error: userContactError } = await supabase
+            .from("user_contact")
+            .upsert(
+              {
+                user_id: user.id,
+                contact_id: contactId,
+                source_company_id: contactData.company_id,
+              },
+              {
+                onConflict: "user_id,contact_id",
+              }
+            );
+
+          if (userContactError) {
+            console.error(
+              "Error creating user-contact relationship:",
+              userContactError
+            );
+          }
+
+          // Save emails for this contact
+          console.log('Debug: Contact emails:', contactData.emails);
+          for (const emailData of contactData.emails) {
+            console.log('Debug: Processing email:', emailData);
+            // Check if email already exists for this contact
+            const { data: existingEmail } = await supabase
+              .from("contact_email")
+              .select("id")
+              .eq("contact_id", contactId)
+              .eq("email", emailData.email)
+              .maybeSingle();
+
+            if (!existingEmail) {
+              const { error: emailError } = await supabase
+                .from("contact_email")
+                .insert({
+                  contact_id: contactId,
+                  email: emailData.email,
+                });
+
+              if (!emailError) {
+                savedEmailsCount++;
+              } else {
+                console.error("Error saving email:", emailError);
+              }
+            }
+          }
+
+          // Add contact to selected list
+          if (selectedListId !== "base") {
+            const { error: listMemberError } = await supabase
+              .from("contact_list_member")
+              .upsert(
+                {
+                  contact_list_id: selectedListId,
+                  contact_id: contactId,
+                },
+                {
+                  onConflict: "contact_list_id,contact_id",
+                }
+              );
+
+            if (!listMemberError) {
+              addedToListCount++;
+            } else {
+              console.error("Error adding contact to list:", listMemberError);
+            }
+          }
+        } catch (contactError) {
+          console.error(
+            `Error processing contact ${contactData.first_name} ${contactData.last_name}:`,
+            contactError
+          );
+        }
+      }
+
+      const selectedList = contactLists.find(list => list.id === selectedListId);
+      const listName = selectedList ? selectedList.name : "your contacts";
+      
+      console.log('Debug: Final counts - contacts:', savedContactsCount, 'emails:', savedEmailsCount, 'addedToList:', addedToListCount);
+      
+      if (savedContactsCount > 0 || addedToListCount > 0) {
+        toast.success(
+          `Successfully saved ${savedContactsCount} new contacts and ${savedEmailsCount} new emails${selectedListId !== "base" ? ` to "${listName}"` : ""}!`
+        );
       } else {
-        throw new Error("Failed to save contacts");
+        toast.info(
+          `All contacts were already in your database${selectedListId !== "base" ? ` and added to "${listName}"` : ""}!`
+        );
       }
     } catch (error) {
       console.error("Error saving contacts:", error);
-      alert("Failed to save contacts. Please try again.");
+      toast.error("Failed to save contacts. Please try again.");
     } finally {
       setIsSaving(false);
     }
   };
 
   // Debug logging
-  console.log("SearchResults - contacts:", contacts);
-  console.log("SearchResults - totalContacts:", totalContacts);
+  // console.log("SearchResults - contacts:", contacts);
+  // console.log("SearchResults - totalContacts:", totalContacts);
 
   // Show loading screen only if no companies found yet
   if (isSearching && companies.length === 0) {
@@ -258,27 +421,53 @@ export default function SearchResults() {
             >
               <CardHeader className="flex items-center gap-4">
                 <div>
-                  <CardTitle>Save 33 contacts</CardTitle>
+                  <CardTitle>Save {totalContacts} contacts</CardTitle>
                   <CardDescription>
                     Select which list to save your contacts to for future use.
                   </CardDescription>
                 </div>
                 <div className="ml-auto flex gap-2 items-center">
-                  {/* Add a select here to choose a list */}
-                  <Select>
-                    <SelectTrigger className="bg-muted">
-                      <SelectValue placeholder="Theme" />
+                  <Select value={selectedListId} onValueChange={setSelectedListId}>
+                    <SelectTrigger className="bg-muted min-w-[200px]">
+                      <SelectValue placeholder="Choose a list" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
+                      {isLoadingLists ? (
+                        <SelectItem value="loading" disabled>
+                          Loading lists...
+                        </SelectItem>
+                      ) : (
+                        <>
+                          {contactLists.length === 0 && (
+                            <SelectItem value="no-lists" disabled>
+                              No lists available
+                            </SelectItem>
+                          )}
+                          {contactLists.map((list) => (
+                            <SelectItem key={list.id} value={list.id}>
+                              {list.name}
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
 
-                  <Button>
-                    Save
-                    <Check />
+                  <Button
+                    onClick={handleSaveContacts}
+                    disabled={isSaving || !selectedListId || totalContacts === 0}
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        Save
+                        <Check className="w-4 h-4 ml-2" />
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardHeader>
@@ -381,7 +570,7 @@ export default function SearchResults() {
                     <div className="flex-1 flex gap-2 items-start min-w-0">
                       <p className="text-7xl font-serif">{index + 1}</p>
                       <div className="truncate">
-                        <h3 className="font-semibold truncate  text-2xl">
+                        <h3 className="font-semibold truncate  text-2xl font-serif">
                           {company.name}
                         </h3>
                         <a

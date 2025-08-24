@@ -35,6 +35,7 @@ export default function SearchInput() {
     setCurrentStage,
     setEmailPatterns,
     setCompaniesWithUncertainPatterns,
+    setCurrentPromptId,
     clearResults,
   } = useSearchStore();
 
@@ -146,11 +147,15 @@ export default function SearchInput() {
                     setCurrentStage("complete");
                     if (data.data) {
                       const {
+                        promptId,
                         companiesFound,
                         contactsFound,
                         emailsGenerated,
                         companiesWithUnsurePatterns,
                       } = data.data;
+                      
+                      // Store the promptId for saving contacts later
+                      setCurrentPromptId(promptId);
                       let message = `Successfully found ${companiesFound} companies, ${
                         contactsFound || 0
                       } contacts, and ${emailsGenerated || 0} emails!`;

@@ -40,23 +40,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { COLORS } from "@/constants/COLORS";
+// COLORS import removed - using direct Tailwind classes
 import {
   Users,
   Plus,
   Edit3,
   Trash2,
   Mail,
-  Phone,
   Building,
   Search,
   MoreHorizontal,
   UserPlus,
   List,
-  Grid,
   CheckCircle,
+  ExternalLink,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { COLORS } from "@/constants/COLORS";
 
 interface ContactList {
   id: string;
@@ -77,127 +77,9 @@ interface Contact {
   created_at: string;
 }
 
-interface ContactCardProps {
-  contact: Contact;
-  isSelected?: boolean;
-  onSelect?: (contactId: string) => void;
-  onEdit?: () => void;
-  onRemove?: () => void;
-}
+// ContactCardProps interface removed - using table view only
 
-function ContactCard({
-  contact,
-  isSelected = false,
-  onSelect,
-  onEdit,
-  onRemove,
-}: ContactCardProps) {
-  return (
-    <Card
-      className={`hover:shadow-md transition-all duration-200 group cursor-pointer border ${
-        isSelected ? "border-primary ring-1 ring-primary/20" : ""
-      }`}
-    >
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3 flex-1">
-            {onSelect && (
-              <Checkbox
-                checked={isSelected}
-                onCheckedChange={() => onSelect(contact.id)}
-                className="mt-1"
-              />
-            )}
-            <Avatar className="w-10 h-10">
-              <AvatarFallback className="bg-primary/10 text-primary">
-                {contact.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <CardTitle className="text-left group-hover:text-opacity-80 transition-colors text-base truncate">
-                {contact.name}
-              </CardTitle>
-              {contact.title && (
-                <CardDescription className="text-left text-sm truncate">
-                  {contact.title}
-                </CardDescription>
-              )}
-              {contact.company_name && (
-                <div className="flex items-center gap-1 mt-1">
-                  <Building className="w-3 h-3 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground truncate">
-                    {contact.company_name}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            {contact.email && (
-              <Badge variant="secondary" className="text-xs">
-                <Mail className="w-3 h-3 mr-1" />
-                Email
-              </Badge>
-            )}
-            {contact.phone && (
-              <Badge variant="secondary" className="text-xs">
-                <Phone className="w-3 h-3 mr-1" />
-                Phone
-              </Badge>
-            )}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="hover:bg-muted/50">
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {onEdit && (
-                  <DropdownMenuItem onClick={onEdit}>
-                    <Edit3 className="w-4 h-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                )}
-                {onRemove && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={onRemove}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Remove from list
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="space-y-1">
-          {contact.email && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Mail className="w-3 h-3" />
-              <span className="truncate">{contact.email}</span>
-            </div>
-          )}
-          {contact.phone && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Phone className="w-3 h-3" />
-              <span>{contact.phone}</span>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+// ContactCard component removed - using table view only
 
 export default function ManageContactsPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -206,7 +88,6 @@ export default function ManageContactsPage() {
   const [showAddContacts, setShowAddContacts] = useState(false);
   const [editingList, setEditingList] = useState<ContactList | null>(null);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [newList, setNewList] = useState({
     name: "",
     description: "",
@@ -256,19 +137,45 @@ export default function ManageContactsPage() {
         .select(
           `
           contact_id,
-          contact:contact(*)
+          contact:contact(
+            id,
+            first_name,
+            last_name,
+            linkedin_url,
+            created_at,
+            company:company(
+              name
+            ),
+            contact_emails:contact_email(
+              email
+            )
+          )
         `
         )
         .eq("contact_list_id", selectedListId);
 
       if (error) throw error;
 
-      return data?.map((member: any) => member.contact as Contact) || [];
+      return (
+        data?.map((member: any) => {
+          const contact = member.contact;
+          return {
+            id: contact.id,
+            name: `${contact.first_name} ${contact.last_name || ""}`.trim(),
+            email: contact.contact_emails?.[0]?.email || undefined,
+            phone: undefined, // Not stored in current schema
+            title: undefined, // Not stored in current schema
+            company_name: contact.company?.name || undefined,
+            linkedin_url: contact.linkedin_url,
+            created_at: contact.created_at,
+          } as Contact;
+        }) || []
+      );
     },
     enabled: !!selectedListId,
   });
 
-  // Fetch all contacts for adding to lists
+  // Fetch all user's contacts via the user_contact join table
   const { data: allContacts = [] } = useQuery({
     queryKey: ["all-contacts"],
     queryFn: async () => {
@@ -278,13 +185,43 @@ export default function ManageContactsPage() {
       if (!user) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
-        .from("contact")
-        .select("*")
+        .from("user_contact")
+        .select(
+          `
+          contact:contact(
+            id,
+            first_name,
+            last_name,
+            linkedin_url,
+            created_at,
+            company:company(
+              name
+            ),
+            contact_emails:contact_email(
+              email
+            )
+          )
+        `
+        )
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+        .order("discovered_at", { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (
+        data?.map((uc: any) => {
+          const contact = uc.contact;
+          return {
+            id: contact.id,
+            name: `${contact.first_name} ${contact.last_name || ""}`.trim(),
+            email: contact.contact_emails?.[0]?.email || undefined,
+            phone: undefined, // Not stored in current schema
+            title: undefined, // Not stored in current schema
+            company_name: contact.company?.name || undefined,
+            linkedin_url: contact.linkedin_url,
+            created_at: contact.created_at,
+          } as Contact;
+        }) || []
+      );
     },
   });
 
@@ -422,7 +359,7 @@ export default function ManageContactsPage() {
 
   const filteredContacts = listContacts.filter(
     (contact) =>
-      contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      contact.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.company_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -434,24 +371,37 @@ export default function ManageContactsPage() {
 
   const filteredAvailableContacts = availableContacts.filter(
     (contact) =>
-      contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      contact.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.company_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Get unique companies from current list contacts
+  const uniqueCompanies = [
+    ...new Set(
+      listContacts.map((contact) => contact.company_name).filter(Boolean)
+    ),
+  ];
+  const companyNames =
+    uniqueCompanies.slice(0, 3).join(", ") +
+    (uniqueCompanies.length > 3
+      ? `, and ${uniqueCompanies.length - 3} more`
+      : "");
+
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-6">
+    <div className="flex h-[calc(100vh-8rem)] gap-4">
       {/* Left Panel - Contact Lists */}
-      <div className="w-80">
+      <div className="w-72">
         <Card className="h-full flex flex-col">
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <List className="w-5 h-5" />
                 <div>
-                  <CardTitle>Contact Lists</CardTitle>
-                  <CardDescription>
-                    Organize your contacts into lists
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <List className="w-4 h-4" /> Contact Lists
+                  </CardTitle>
+                  <CardDescription className="text-sm">
+                    Organize your contacts
                   </CardDescription>
                 </div>
               </div>
@@ -459,9 +409,9 @@ export default function ManageContactsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowCreateList(true)}
-                className={`${COLORS.blue.light_variant_with_border.class}`}
+                className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3 h-3" />
               </Button>
             </div>
           </CardHeader>
@@ -495,19 +445,21 @@ export default function ManageContactsPage() {
                     }`}
                     onClick={() => setSelectedListId(list.id)}
                   >
-                    <CardContent className="p-4">
+                    <CardContent className="">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium truncate">{list.name}</h4>
+                          <h4 className="font-medium text-sm truncate">
+                            {list.name}
+                          </h4>
                           {list.description && (
-                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-1 truncate">
                               {list.description}
                             </p>
                           )}
-                          <div className="flex items-center gap-2 mt-2">
-                            <Badge variant="secondary" className="text-xs">
+                          <div className="flex items-center gap-1 mt-2">
+                            <Badge variant="light" color="orange">
                               <Users className="w-3 h-3 mr-1" />
-                              {list.contact_count} contacts
+                              {list.contact_count}
                             </Badge>
                           </div>
                         </div>
@@ -525,6 +477,8 @@ export default function ManageContactsPage() {
       <div className="flex-1">
         {selectedListId ? (
           <Card className="h-full flex flex-col">
+            {/* Statistics Banner */}
+
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -538,27 +492,11 @@ export default function ManageContactsPage() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center border rounded-lg p-1">
-                    <Button
-                      variant={viewMode === "grid" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setViewMode("grid")}
-                    >
-                      <Grid className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant={viewMode === "table" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setViewMode("table")}
-                    >
-                      <List className="w-4 h-4" />
-                    </Button>
-                  </div>
                   <Button
-                    variant="outline"
+                    variant="light"
                     size="sm"
                     onClick={() => setShowAddContacts(true)}
-                    className={`${COLORS.green.light_variant_with_border.class}`}
+                    color="orange"
                   >
                     <UserPlus className="w-4 h-4 mr-2" />
                     Add contacts
@@ -601,99 +539,149 @@ export default function ManageContactsPage() {
                     </Button>
                   )}
                 </div>
-              ) : viewMode === "grid" ? (
-                <div className="h-full overflow-y-auto">
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="grid grid-cols-1 lg:grid-cols-2 gap-4 pr-2"
-                  >
-                    {filteredContacts.map((contact, index) => (
-                      <motion.div
-                        key={contact.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                      >
-                        <ContactCard
-                          contact={contact}
-                          onRemove={() => handleRemoveContact(contact.id)}
-                        />
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                </div>
               ) : (
-                <div className="h-full overflow-y-auto border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Company</TableHead>
-                        <TableHead className="w-[100px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredContacts.map((contact) => (
-                        <TableRow key={contact.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Avatar className="w-8 h-8">
-                                <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                                  {contact.name
-                                    .split(" ")
-                                    .map((n) => n[0])
-                                    .join("")
-                                    .toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <div className="font-medium">
-                                  {contact.name}
-                                </div>
-                                {contact.title && (
-                                  <div className="text-sm text-muted-foreground">
-                                    {contact.title}
+                <div className="flex-1 flex flex-col min-h-0">
+                  {/* Statistics Banner - Fixed outside scroll area */}
+                  {listContacts.length > 0 && (
+                    <div
+                      className={
+                        "px-6 py-4 rounded-lg mb-4 " +
+                        COLORS.indigo.light_variant_with_border.class
+                      }
+                    >
+                      <div className="flex items-center gap-2 text-sm">
+                        <Building className="w-4 h-4 flex-shrink-0" />
+                        <span className="font-medium">
+                          Displaying {filteredContacts.length} contacts from{" "}
+                          {uniqueCompanies.length} companies
+                          {uniqueCompanies.length > 0 && (
+                            <span className="ml-1">
+                              including {companyNames}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scrollable Table Container */}
+                  <div className="flex-1 min-h-0">
+                    <div className="h-full border rounded-lg overflow-auto">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-background border-b z-10">
+                          <TableRow>
+                            <TableHead className="w-48">
+                              Contact
+                            </TableHead>
+                            <TableHead className="w-48">
+                              Email
+                            </TableHead>
+                            <TableHead className="w-36">
+                              Company
+                            </TableHead>
+                            <TableHead className="w-28">
+                              LinkedIn
+                            </TableHead>
+                            <TableHead className="w-24">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredContacts.map((contact) => (
+                            <TableRow key={contact.id}>
+                              <TableCell className="w-48">
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="w-8 h-8 flex-shrink-0">
+                                    <AvatarFallback className="bg-blue-50 text-blue-700 text-xs">
+                                      {contact.name
+                                        .split(" ")
+                                        .map((n) => n[0])
+                                        .join("")
+                                        .toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-medium truncate">
+                                      {contact.name}
+                                    </div>
+                                    {contact.title && (
+                                      <div className="text-sm text-muted-foreground truncate">
+                                        {contact.title}
+                                      </div>
+                                    )}
                                   </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="w-48">
+                                {contact.email ? (
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <Mail className="w-3 h-3 text-green-600 flex-shrink-0" />
+                                    <span className="text-sm truncate">
+                                      {contact.email}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">
+                                    -
+                                  </span>
                                 )}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {contact.email || "-"}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {contact.phone || "-"}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {contact.company_name || "-"}
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleRemoveContact(contact.id)
-                                  }
-                                  className="text-destructive"
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Remove from list
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                              </TableCell>
+                              <TableCell className="w-36">
+                                {contact.company_name ? (
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <Building className="w-3 h-3 text-blue-600 flex-shrink-0" />
+                                    <span className="text-sm truncate">
+                                      {contact.company_name}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">
+                                    -
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell className="w-28">
+                                {contact.linkedin_url ? (
+                                  <a
+                                    href={contact.linkedin_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm"
+                                  >
+                                    <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                    <span className="truncate">LinkedIn</span>
+                                  </a>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">
+                                    -
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell className="w-24">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm">
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleRemoveContact(contact.id)
+                                      }
+                                      className="text-destructive"
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" />
+                                      Remove from list
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -805,7 +793,7 @@ export default function ManageContactsPage() {
                   size="sm"
                   onClick={handleAddSelectedContacts}
                   disabled={addContactsToListMutation.isPending}
-                  className={COLORS.green.light_variant_with_border.class}
+                  className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   {addContactsToListMutation.isPending
@@ -835,14 +823,55 @@ export default function ManageContactsPage() {
                   </p>
                 </div>
               ) : (
-                filteredAvailableContacts.map((contact) => (
-                  <ContactCard
-                    key={contact.id}
-                    contact={contact}
-                    isSelected={selectedContacts.includes(contact.id)}
-                    onSelect={handleSelectContact}
-                  />
-                ))
+                <div className="space-y-2">
+                  {filteredAvailableContacts.map((contact) => (
+                    <Card
+                      key={contact.id}
+                      className="p-3 cursor-pointer hover:bg-muted/50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={selectedContacts.includes(contact.id)}
+                          onCheckedChange={() =>
+                            handleSelectContact(contact.id)
+                          }
+                        />
+                        <Avatar className="w-8 h-8">
+                          <AvatarFallback className="bg-blue-50 text-blue-700 text-xs">
+                            {contact.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">
+                            {contact.name}
+                          </div>
+                          <div className="flex items-center gap-4 mt-1">
+                            {contact.email && (
+                              <div className="flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-green-600" />
+                                <span className="text-xs text-muted-foreground truncate">
+                                  {contact.email}
+                                </span>
+                              </div>
+                            )}
+                            {contact.company_name && (
+                              <div className="flex items-center gap-1">
+                                <Building className="w-3 h-3 text-blue-600" />
+                                <span className="text-xs text-muted-foreground truncate">
+                                  {contact.company_name}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
               )}
             </div>
 

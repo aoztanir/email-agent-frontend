@@ -33,14 +33,14 @@ const Icons = {
 
 export function DockDemo() {
   return (
-    <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50">
+    <div className="fixed top-0 left-1/2 transform -translate-x-1/2 z-50">
       <TooltipProvider>
         <Dock
           direction="middle"
           className={`shadow-xl ${COLORS.orange.light_variant_with_border.class}`}
         >
           {/* App name */}
-          <div className="px-4 py-2 text-lg font-serif">Email Agent</div>
+          <div className="px-4 text-lg font-serif">Email Agent</div>
 
           <Separator orientation="vertical" className="h-full" />
 
