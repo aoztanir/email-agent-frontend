@@ -18,6 +18,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { NavUser } from "@/components/dashboard/layout-components/nav-user";
+import Logo from "@/components/miscellaneous-components/logo";
 
 interface NavItem {
   icon: React.ReactNode;
@@ -26,7 +27,7 @@ interface NavItem {
 }
 
 export function DashboardSidebar() {
-  const { setOpen } = useSidebar();
+  const { setOpen, open } = useSidebar();
   const pathname = usePathname();
 
   const navItems: NavItem[] = [
@@ -67,16 +68,24 @@ export function DashboardSidebar() {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <SidebarHeader>
+      <SidebarHeader className={"py-4"}>
         <SidebarMenuButton
           size="lg"
-          className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+          className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground bg-accent "
         >
-          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Mail className="size-4" />
+          <div
+            className={
+              "flex aspect-square size-8 items-center rounded-lg w-full " +
+              (open ? "justify-between" : "justify-center")
+            }
+          >
+            <Logo size={open ? 30 : 25} />
           </div>
-          <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-semibold">Email Agent</span>
+          <div className="grid  text-right text-lg leading-tight text-nowrap">
+            <code>ERA-0</code>
+            <p className="text-xs text-muted-foreground">
+              Networking, open-sourced.
+            </p>
           </div>
         </SidebarMenuButton>
       </SidebarHeader>

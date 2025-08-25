@@ -9,6 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { COLORS } from "@/constants/COLORS";
+import { Badge } from "../ui/badge";
+import Logo from "../miscellaneous-components/logo";
 
 interface FeatureCardProps {
   title: string;
@@ -21,7 +23,9 @@ function FeatureCard({ title, description, colorClass }: FeatureCardProps) {
     <Card className={`${colorClass} h-full`}>
       <CardHeader>
         <CardTitle className="text-left font-serif">{title}</CardTitle>
-        <CardDescription className="text-left">{description}</CardDescription>
+        <CardDescription className="text-left text-xs">
+          {description}
+        </CardDescription>
       </CardHeader>
     </Card>
   );
@@ -40,6 +44,16 @@ export default function WelcomeSection({ hasSearched }: WelcomeSectionProps) {
       animate={{ opacity: 1, y: 0 }}
       className="text-center mb-8"
     >
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-10"
+      >
+        <Badge>
+          <Logo className="text-primary-foreground" />
+          <code>ERA-0</code>
+        </Badge>
+      </motion.div>
       <motion.h1
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

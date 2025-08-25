@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "motion/react";
 import { Loader2, Search, Send } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
@@ -29,6 +29,11 @@ const SEARCH_SUGGESTIONS = [
   "Fintech companies in London",
   "VC firms in Chicago",
   "Consulting firms for me to network with",
+  "Software development agencies",
+  "E-commerce companies in Seattle",
+  "Pharmaceutical companies in New Jersey",
+  "Aerospace companies in California",
+  "Energy companies in Texas",
 ];
 
 export default function SearchInput({
@@ -43,6 +48,59 @@ export default function SearchInput({
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [companyCount, setCompanyCount] = useState([5]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Filter suggestions based on search query
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      const filtered = SEARCH_SUGGESTIONS.filter((suggestion) =>
+        suggestion.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredSuggestions(filtered);
+    } else {
+      setFilteredSuggestions(SEARCH_SUGGESTIONS);
+    }
+    setSelectedIndex(-1);
+  }, [searchQuery]);
+
+  // Handle positioning to prevent overflow
+  useEffect(() => {
+    if (showSuggestions && containerRef.current && suggestionsRef.current) {
+      const container = containerRef.current;
+      const suggestions = suggestionsRef.current;
+      const rect = container.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom - 10;
+      const spaceAbove = rect.top - 10;
+
+      // Calculate dropdown height (max 240px as defined in CSS)
+      const maxHeight = Math.min(240, filteredSuggestions.length * 40 + 40); // 40px per item + header
+      const offset = 8; // 8px offset from card
+
+      if (spaceBelow >= maxHeight || spaceBelow >= spaceAbove) {
+        // Show below
+        suggestions.style.top = `calc(100% + ${offset}px)`;
+        suggestions.style.bottom = "auto";
+        suggestions.style.maxHeight = `${Math.min(
+          maxHeight,
+          spaceBelow - offset
+        )}px`;
+      } else {
+        // Show above
+        suggestions.style.top = "auto";
+        suggestions.style.bottom = `calc(100% + ${offset}px)`;
+        suggestions.style.maxHeight = `${Math.min(
+          maxHeight,
+          spaceAbove - offset
+        )}px`;
+      }
+    }
+  }, [showSuggestions, filteredSuggestions]);
 
   const handleSearch = async (queryOverride?: string) => {
     const query = queryOverride || searchQuery;
@@ -51,24 +109,64 @@ export default function SearchInput({
       return;
     }
 
+    setShowSuggestions(false);
     await onSearch(query, companyCount[0]);
   };
 
   const handleSuggestionClick = async (suggestion: string) => {
     setSearchQuery(suggestion);
     setShowSuggestions(false);
+    inputRef.current?.blur();
     await handleSearch(suggestion);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      setShowSuggestions(false);
-      handleSearch();
+    if (!showSuggestions) {
+      if (e.key === "Enter") {
+        handleSearch();
+      }
+      return;
     }
+
+    switch (e.key) {
+      case "Enter":
+        e.preventDefault();
+        if (selectedIndex >= 0 && selectedIndex < filteredSuggestions.length) {
+          handleSuggestionClick(filteredSuggestions[selectedIndex]);
+        } else {
+          handleSearch();
+        }
+        break;
+      case "ArrowDown":
+        e.preventDefault();
+        setSelectedIndex((prev) =>
+          prev < filteredSuggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+        break;
+      case "Escape":
+        setShowSuggestions(false);
+        setSelectedIndex(-1);
+        inputRef.current?.blur();
+        break;
+    }
+  };
+
+  const handleInputFocus = () => {
+    setShowSuggestions(true);
+  };
+
+  const handleInputBlur = () => {
+    // Delay hiding suggestions to allow for clicks
+    setTimeout(() => setShowSuggestions(false), 150);
   };
 
   return (
     <motion.div
+      ref={containerRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
@@ -80,15 +178,17 @@ export default function SearchInput({
           <div className="relative flex items-center">
             <Search className="text-muted-foreground w-4 h-4 mr-3 flex-shrink-0" />
             <input
+              ref={inputRef}
               type="text"
               placeholder={placeholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
               onKeyDown={handleKeyDown}
               className="flex-1 bg-transparent border-0 outline-none text-base placeholder:text-muted-foreground"
               disabled={isSearching}
+              autoComplete="off"
             />
             <Button
               type="button"
@@ -150,22 +250,37 @@ export default function SearchInput({
       </div>
 
       {/* Suggestions Dropdown */}
-      {showSuggestions && (
+      {showSuggestions && filteredSuggestions.length > 0 && (
         <motion.div
+          ref={suggestionsRef}
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute top-full left-0 right-0 z-50 bg-popover border rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto"
+          className="absolute  z-50 bg-popover border rounded-lg shadow-lg overflow-hidden"
+          style={{
+            maxHeight: "240px",
+            marginTop: "0px",
+            marginBottom: "0px",
+            // Position will be set by useEffect
+          }}
         >
-          <div className="p-2 space-y-1">
-            <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
-              Popular searches
-            </div>
-            {SEARCH_SUGGESTIONS.map((suggestion, index) => (
+          <div className="sticky top-0 bg-popover p-3 text-xs font-medium text-muted-foreground border-b border-border/50 z-10">
+            {searchQuery.trim() ? "Matching suggestions" : "Popular searches"}
+          </div>
+          <div
+            className="overflow-y-scroll p-2 space-y-1"
+            style={{ maxHeight: "200px" }}
+          >
+            {filteredSuggestions.map((suggestion, index) => (
               <button
                 key={index}
                 type="button"
                 onClick={() => handleSuggestionClick(suggestion)}
-                className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                  selectedIndex === index
+                    ? "bg-accent text-accent-foreground"
+                    : "hover:bg-accent hover:text-accent-foreground"
+                }`}
+                onMouseEnter={() => setSelectedIndex(index)}
               >
                 {suggestion}
               </button>

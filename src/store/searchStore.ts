@@ -73,6 +73,7 @@ interface SearchState {
   setIsModalOpen: (isOpen: boolean) => void;
   setCurrentPromptId: (promptId: string | null) => void;
   clearResults: () => void;
+  searchCompaniesAndContacts: (query: string, amount: number) => Promise<void>;
 }
 
 export const useSearchStore = create<SearchState>((set) => ({
@@ -137,4 +138,104 @@ export const useSearchStore = create<SearchState>((set) => ({
       isModalOpen: false,
       currentPromptId: null,
     }),
+  searchCompaniesAndContacts: async (query: string, amount: number) => {
+    set({ 
+      isSearching: true, 
+      hasSearched: true, 
+      searchQuery: query,
+      currentStage: "companies",
+      currentStatus: "Starting search...",
+      companies: [],
+      contacts: {},
+      emailPatterns: []
+    });
+
+    try {
+      // Step 1: Search companies
+      set({ currentStatus: "Finding companies..." });
+      
+      const companiesResponse = await fetch('/api/search-companies-and-contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, total: amount })
+      });
+
+      if (!companiesResponse.ok) {
+        throw new Error('Failed to find companies');
+      }
+
+      const reader = companiesResponse.body?.getReader();
+      if (!reader) throw new Error('No response body reader');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim() === '') continue;
+          
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'company_found') {
+                set((state) => ({
+                  companies: [...state.companies, data.company]
+                }));
+              } else if (data.type === 'contact_found') {
+                set((state) => ({
+                  contacts: {
+                    ...state.contacts,
+                    [data.contact.company_id]: [
+                      ...(state.contacts[data.contact.company_id] || []),
+                      data.contact
+                    ]
+                  }
+                }));
+              } else if (data.type === 'email_patterns_generated') {
+                set({ emailPatterns: data.data.patterns });
+              } else if (data.type === 'status') {
+                set({ currentStatus: data.message });
+              } else if (data.type === 'stage') {
+                set({ currentStage: data.stage });
+              } else if (data.type === 'complete') {
+                set({ 
+                  isSearching: false, 
+                  currentStatus: data.message 
+                });
+              } else if (data.type === 'error') {
+                set({ 
+                  isSearching: false, 
+                  currentStatus: `Error: ${data.message}`,
+                  currentStage: ""
+                });
+              }
+            } catch (e) {
+              console.warn('Failed to parse SSE data:', line);
+            }
+          }
+        }
+      }
+      
+      // Only set completion status if not already set by the 'complete' message
+      set((state) => ({
+        isSearching: false,
+        currentStatus: state.currentStatus || "Search complete"
+      }));
+    } catch (error) {
+      console.error('Search failed:', error);
+      set({ 
+        isSearching: false, 
+        currentStatus: "Search failed",
+        currentStage: ""
+      });
+    }
+  },
 }));

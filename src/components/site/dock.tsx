@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { Dock, DockIcon } from "@/components/magicui/dock";
 import { ModeToggle } from "../ui/mode-toggle";
 import { COLORS } from "@/constants/COLORS";
+import Logo from "../miscellaneous-components/logo";
 
 export type IconProps = React.HTMLAttributes<SVGElement>;
 
@@ -40,7 +41,10 @@ export function DockDemo() {
           className={`shadow-xl ${COLORS.orange.light_variant_with_border.class}`}
         >
           {/* App name */}
-          <div className="px-4 text-lg font-serif">Email Agent</div>
+          <div className="px-2 text-lg font-mono flex items-center gap-1">
+            <Logo className="text-primary-foreground text-lg" />
+            <code className="">ERA-0</code>
+          </div>
 
           <Separator orientation="vertical" className="h-full" />
 

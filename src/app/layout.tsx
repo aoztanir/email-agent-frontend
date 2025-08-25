@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter_Tight } from "next/font/google";
 import "./globals.css";
 
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 
-const inter = Inter({
-  variable: "--font-geist-sans",
+const inter = Inter_Tight({
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -24,7 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} antialiased`}>
+      <body className={`${inter.className} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

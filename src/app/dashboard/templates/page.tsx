@@ -574,7 +574,7 @@ Best regards,
               <Button
                 onClick={handleGenerateTemplate}
                 disabled={!aiPrompt.trim() || isGenerating}
-                className={`w-full justify-between ${COLORS.orange.light_variant_with_border.class} hover:opacity-80`}
+                className={`w-full justify-between ${COLORS.orange.light_variant_with_border.class} !text-foreground`}
               >
                 {isGenerating
                   ? "Generating template..."
