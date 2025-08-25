@@ -258,6 +258,100 @@ function extractLinkedInUsername(url: string): string {
   }
 }
 
+// Helper function to generate emails for contacts without them
+async function generateEmailsForContacts(
+  contacts: any[],
+  companyId: string
+): Promise<void> {
+  const contactsWithoutEmails = contacts.filter(
+    (contact) => !contact.contact_email || contact.contact_email.length === 0
+  );
+
+  if (contactsWithoutEmails.length === 0) {
+    return;
+  }
+
+  console.log(`Generating emails for ${contactsWithoutEmails.length} contacts without emails`);
+
+  // Get company's email pattern
+  const { data: emailPatterns, error: emailPatternError } = await supabase
+    .from("email_pattern")
+    .select("pattern, confidence")
+    .eq("company_id", companyId)
+    .order("confidence", { ascending: false })
+    .limit(1);
+
+  if (emailPatternError) {
+    console.error("Error fetching email pattern:", emailPatternError);
+    return;
+  }
+
+  if (!emailPatterns || emailPatterns.length === 0) {
+    console.warn(`No email pattern found for company ${companyId}`);
+    return;
+  }
+
+  const emailPattern = emailPatterns[0];
+  const emailsToInsert = [];
+
+  for (const contact of contactsWithoutEmails) {
+    if (contact.first_name && contact.last_name) {
+      // Generate email based on pattern
+      let generatedEmail = emailPattern.pattern;
+      
+      // Replace common placeholders (both with and without braces)
+      generatedEmail = generatedEmail
+        .replace(/\{?first_name\}?/gi, contact.first_name.toLowerCase())
+        .replace(/\{?last_name\}?/gi, contact.last_name.toLowerCase())
+        .replace(/\{?firstname\}?/gi, contact.first_name.toLowerCase())
+        .replace(/\{?lastname\}?/gi, contact.last_name.toLowerCase())
+        .replace(/\{?first\}?/gi, contact.first_name.toLowerCase())
+        .replace(/\{?last\}?/gi, contact.last_name.toLowerCase())
+        .replace(/\{?f\}?/gi, contact.first_name.charAt(0).toLowerCase())
+        .replace(/\{?l\}?/gi, contact.last_name.charAt(0).toLowerCase());
+
+      // Clean up the email (remove extra dots, fix formatting)
+      generatedEmail = generatedEmail
+        .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
+        .replace(/^\.|\.$/g, '') // Remove leading/trailing dots
+        .toLowerCase();
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (emailRegex.test(generatedEmail)) {
+        emailsToInsert.push({
+          contact_id: contact.id,
+          email: generatedEmail
+        });
+      } else {
+        console.warn(`Invalid email generated for contact ${contact.id}: ${generatedEmail}`);
+      }
+    }
+  }
+
+  // Bulk insert generated emails
+  if (emailsToInsert.length > 0) {
+    const { data: insertedEmails, error: emailInsertError } = await supabase
+      .from("contact_email")
+      .upsert(emailsToInsert, {
+        onConflict: "contact_id,email"
+      })
+      .select("*");
+
+    if (emailInsertError) {
+      console.error("Error inserting generated emails:", emailInsertError);
+    } else {
+      console.log(`Successfully generated ${insertedEmails?.length || 0} emails`);
+      
+      // Update contacts with their new emails
+      for (const contact of contactsWithoutEmails) {
+        const contactEmails = insertedEmails?.filter(e => e.contact_id === contact.id) || [];
+        contact.contact_email = contactEmails;
+      }
+    }
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Parse and validate request body
@@ -327,10 +421,14 @@ export async function POST(req: NextRequest) {
       `Found ${existingContacts?.length || 0} existing contacts in database`
     );
 
-    // If we have enough existing contacts, return them
+    // If we have enough existing contacts, generate emails for them and return
     const existingContactsCount = existingContacts?.length || 0;
     if (existingContactsCount >= amount) {
       const limitedExistingContacts = existingContacts!.slice(0, amount);
+      
+      // Generate emails for existing contacts that don't have them
+      await generateEmailsForContacts(limitedExistingContacts, companyId);
+      
       return Response.json({
         contacts: limitedExistingContacts,
         totalFound: limitedExistingContacts.length,
@@ -392,13 +490,27 @@ export async function POST(req: NextRequest) {
       console.log(`Successfully inserted ${newContacts.length} new contacts`);
     }
 
-    // Step 7: Combine existing and new contacts, limit to requested amount
+    // Step 7: Combine existing and new contacts, deduplicate by ID, limit to requested amount
     const allContacts = [...(existingContacts || []), ...newContacts];
-    const limitedContacts = allContacts.slice(0, amount);
+    
+    // Deduplicate by contact ID to avoid duplicate entries
+    const seenIds = new Set();
+    const deduplicatedContacts = allContacts.filter(contact => {
+      if (seenIds.has(contact.id)) {
+        return false;
+      }
+      seenIds.add(contact.id);
+      return true;
+    });
+    
+    const limitedContacts = deduplicatedContacts.slice(0, amount);
 
     console.log(`Returning ${limitedContacts.length} total contacts`);
 
-    // Step 8: Return the results
+    // Step 8: Generate emails for contacts that don't have them
+    await generateEmailsForContacts(limitedContacts, companyId);
+
+    // Step 9: Return the results
     return Response.json({
       contacts: limitedContacts,
       totalFound: limitedContacts.length,
