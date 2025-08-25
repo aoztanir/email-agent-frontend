@@ -72,8 +72,10 @@ export function DockDemo() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Link
-                  href="https://linkedin.com"
-                  aria-label="LinkedIn"
+                  href="https://linkedin.com/in/aryah-oztanir"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="My LinkedIn"
                   className={cn(
                     buttonVariants({ variant: "ghost", size: "icon" }),
                     "size-12 rounded-full"
@@ -83,7 +85,7 @@ export function DockDemo() {
                 </Link>
               </TooltipTrigger>
               <TooltipContent>
-                <p>LinkedIn</p>
+                <p>My LinkedIn</p>
               </TooltipContent>
             </Tooltip>
           </DockIcon>

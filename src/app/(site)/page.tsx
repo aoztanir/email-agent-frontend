@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { BackgroundBeams } from "@/components/magicui/background-beams";
 import { DockDemo } from "@/components/site/dock";
-import WelcomeSection from "./components/WelcomeSection";
+
 import SearchInput from "@/components/search/search-input";
 import SearchResults from "@/components/search/search-results";
 import CompanyContactsModal from "@/components/search/company-contacts-modal";
 import ContactSaveBanner from "@/components/search/contact-save-banner";
 import { useSearch } from "@/hooks/use-search";
 import { toast } from "sonner";
+import WelcomeSection from "@/components/site/WelcomeSection";
 
 export default function MainPage() {
   const [hasSearched, setHasSearched] = useState(false);
@@ -25,11 +26,13 @@ export default function MainPage() {
     currentStage,
     currentStatus,
     searchQuery,
-    searchCompaniesAndContacts
+    searchCompaniesAndContacts,
   } = useSearch();
 
   const handleLogin = () => {
-    toast.info("Login feature coming soon! For now, you can still search and discover contacts.");
+    toast.info(
+      "Login feature coming soon! For now, you can still search and discover contacts."
+    );
     // TODO: Implement login functionality
   };
 
@@ -53,7 +56,9 @@ export default function MainPage() {
     try {
       const allContacts = Object.values(contacts).flat();
       // This is for demo purposes - in the real app this would save to the database
-      toast.success(`Demo: Would save ${allContacts.length} contacts to list ${contactListId}`);
+      toast.success(
+        `Demo: Would save ${allContacts.length} contacts to list ${contactListId}`
+      );
       setShowSaveBanner(false);
       // TODO: Implement actual save functionality when user system is ready
     } catch (error) {
@@ -67,7 +72,7 @@ export default function MainPage() {
     setShowSaveBanner(false);
     setHasSearched(true);
     await searchCompaniesAndContacts(query, amount);
-    
+
     // Show save banner when search is complete and we have contacts
     if (!isSearching && Object.values(contacts).flat().length > 0) {
       setShowSaveBanner(true);

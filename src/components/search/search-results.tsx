@@ -54,7 +54,7 @@ export default function SearchResults({
   onViewCompanyContacts,
   showProgressBanner = true,
   showContactsInline = false,
-  className = ""
+  className = "",
 }: SearchResultsProps) {
   const totalContacts = Object.values(contacts).flat().length;
   const totalEmails = Object.values(contacts)
@@ -84,7 +84,7 @@ export default function SearchResults({
       >
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <h2 className="text-2xl font-bold flex items-center gap-2">
+            <h2 className="text-2xl font-bold flex items-center gap-2 !font-sans">
               <Search className="w-6 h-6 text-primary" />
               Search Results
             </h2>
@@ -159,11 +159,12 @@ export default function SearchResults({
           animate={{ opacity: 1 }}
           className="text-center py-12 space-y-4"
         >
-          <div className="w-12 h-12 mx-auto border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+          <div className="w-12 h-12 mx-auto border-4 border-orange-600 border-t-orange-900 rounded-full animate-spin" />
           <div className="space-y-2">
             <h3 className="text-lg font-medium">Searching for companies...</h3>
             <p className="text-muted-foreground">
-              This may take a few moments while we discover companies and contacts.
+              This may take a few moments while we discover companies and
+              contacts.
             </p>
           </div>
         </motion.div>
