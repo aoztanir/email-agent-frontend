@@ -1,19 +1,21 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import SearchInput from "@/components/search/search-input";
 import SearchResults from "@/components/search/search-results";
 import CompanyContactsModal from "@/components/search/company-contacts-modal";
-import { useSearchStore } from "@/store/searchStore";
-import { BackgroundBeams } from "@/components/magicui/background-beams";
+import ContactSaveBanner from "@/components/search/contact-save-banner";
+import { useSearch } from "@/hooks/use-search";
+import { toast } from "sonner";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { COLORS } from "@/constants/COLORS";
+import { createClient } from "@/utils/supabase/client";
 
 interface FeatureCardProps {
   title: string;
@@ -34,29 +36,72 @@ function FeatureCard({ title, description, colorClass }: FeatureCardProps) {
   );
 }
 
+interface ContactList {
+  id: string;
+  name: string;
+  description?: string;
+  contact_count?: number;
+}
+
 export default function FindContactsPage() {
-  const { 
-    hasSearched, 
-    companies, 
-    contacts, 
-    isSearching, 
-    currentStage, 
-    currentStatus, 
+  const [selectedCompany, setSelectedCompany] = useState<any>(null);
+  const [showSaveBanner, setShowSaveBanner] = useState(false);
+  const [contactLists, setContactLists] = useState<ContactList[]>([]);
+
+  const {
+    companies,
+    contacts,
+    isSearching,
+    currentStage,
+    currentStatus,
     searchQuery,
-    selectedCompany,
-    setSelectedCompany,
-    searchCompaniesAndContacts 
-  } = useSearchStore();
+    hasSearched,
+    searchCompaniesAndContacts,
+  } = useSearch();
+  const supabase = createClient();
+
+  // Load contact lists on component mount
+  useEffect(() => {
+    const loadContactLists = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("contact_list")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("Error loading contact lists:", error);
+          return;
+        }
+
+        setContactLists(data || []);
+      } catch (error) {
+        console.error("Error loading contact lists:", error);
+      }
+    };
+
+    loadContactLists();
+  }, []);
+
+  // Show save banner when search completes and we have contacts
+  useEffect(() => {
+    if (
+      !isSearching &&
+      hasSearched &&
+      Object.values(contacts).flat().length > 0
+    ) {
+      setShowSaveBanner(true);
+    }
+  }, [isSearching, hasSearched, contacts]);
+
+  const handleLogin = () => {
+    toast.info(
+      "Login feature coming soon! For now, you can still search and save contacts."
+    );
+  };
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-8rem)] relative">
-      {/* Background beams for welcome state */}
-      {!hasSearched && (
-        <div className="absolute inset-0 pointer-events-none">
-          <BackgroundBeams />
-        </div>
-      )}
-
       <div className="flex-1 flex flex-col relative z-10">
         {/* Search Results - appear above search input */}
         {hasSearched && (
@@ -69,7 +114,7 @@ export default function FindContactsPage() {
               currentStatus={currentStatus}
               searchQuery={searchQuery}
               onViewCompanyContacts={(company) => setSelectedCompany(company)}
-              showProgressBanner={true}
+              showProgressBanner={false}
               showContactsInline={false}
             />
           </div>
@@ -118,7 +163,7 @@ export default function FindContactsPage() {
               </div>
             )}
             <SearchInput
-              onSearch={(query, amount) => searchCompaniesAndContacts(query, amount)}
+              onSearch={searchCompaniesAndContacts}
               isSearching={isSearching}
               showBorderBeam={!hasSearched}
             />
@@ -126,16 +171,22 @@ export default function FindContactsPage() {
         </div>
       </div>
 
-      <CompanyContactsModal 
+      <CompanyContactsModal
         company={selectedCompany}
         contacts={selectedCompany ? contacts[selectedCompany.id] || [] : []}
         isOpen={!!selectedCompany}
         onClose={() => setSelectedCompany(null)}
-        onSaveContacts={() => {
-          setSelectedCompany(null);
-          // TODO: Implement save functionality
-        }}
+        onSaveContacts={() => setSelectedCompany(null)}
         showSaveOption={true}
+      />
+
+      <ContactSaveBanner
+        contacts={Object.values(contacts).flat()}
+        isVisible={showSaveBanner}
+        onDismiss={() => setShowSaveBanner(false)}
+        onLogin={handleLogin}
+        contactLists={contactLists}
+        isLoggedIn={true}
       />
     </div>
   );

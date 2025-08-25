@@ -537,7 +537,7 @@ Best regards,
               />
             </div>
 
-            <div>
+            {/* <div>
               <label className="text-sm font-medium mb-2 block">
                 Template purpose and audience
               </label>
@@ -553,7 +553,7 @@ Best regards,
               >
                 Add more details
               </Button>
-            </div>
+            </div> */}
 
             <div>
               <label className="text-sm font-medium mb-2 block">

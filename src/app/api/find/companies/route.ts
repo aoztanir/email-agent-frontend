@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     // Step 1: Query Groq for companies
     console.log("Querying Groq for companies...");
     const result = await generateObject({
-      model: groq("meta-llama/llama-4-scout-17b-16e-instruct"),
+      model: groq("meta-llama/llama-4-maverick-17b-128e-instruct"),
       schema: CompanyResponseSchema,
       prompt: `Find ${amount} companies that match the query "${query}" in United States.
       
@@ -119,7 +119,9 @@ export async function POST(req: NextRequest) {
 
       // Skip companies without valid domains as they can't be uniquely identified
       if (!normalizedDomain || normalizedDomain.trim() === "") {
-        console.log(`Skipping company "${company.name}" - no valid domain for unique identification`);
+        console.log(
+          `Skipping company "${company.name}" - no valid domain for unique identification`
+        );
         continue;
       }
 

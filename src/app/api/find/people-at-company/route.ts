@@ -97,7 +97,7 @@ PATTERN RULES:
 Set nameConfidence & emailConfidence (0-1) based on clarity.`;
 
     const result = await generateObject({
-      model: groq("moonshotai/kimi-k2-instruct"),
+      model: groq("meta-llama/llama-4-maverick-17b-128e-instruct"),
       schema: ContactAndEmailProcessingSchema,
       prompt: prompt,
       temperature: 0.1,

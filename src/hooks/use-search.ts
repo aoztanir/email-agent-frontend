@@ -136,7 +136,10 @@ export function useSearch() {
           currentStatus: "No companies found for your query",
           isSearching: false
         }));
-        toast.error("No companies found for your query", { id: searchToastId });
+        toast.error("No companies found for your query", { 
+          id: searchToastId,
+          duration: 5000 // 5 seconds
+        });
         return;
       }
 
@@ -258,11 +261,17 @@ export function useSearch() {
       }));
 
       const message = `Found ${companies.length} companies, ${totalContactsFound} contacts, and ${totalEmailsGenerated} emails!`;
-      toast.success(message, { id: searchToastId });
+      toast.success(message, { 
+        id: searchToastId,
+        duration: 5000 // 5 seconds
+      });
 
     } catch (error) {
       console.error("Search error:", error);
-      toast.error("Search failed. Please try again.", { id: searchToastId });
+      toast.error("Search failed. Please try again.", { 
+        id: searchToastId,
+        duration: 5000 // 5 seconds
+      });
       
       setState(prev => ({
         ...prev,

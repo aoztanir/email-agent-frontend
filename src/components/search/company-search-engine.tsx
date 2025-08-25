@@ -50,8 +50,6 @@ export default function CompanySearchEngine({
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSaveBanner, setShowSaveBanner] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
   const handleViewCompanyContacts = (company: Company) => {
     setSelectedCompany(company);
     setIsModalOpen(true);
@@ -65,21 +63,6 @@ export default function CompanySearchEngine({
   const handleSaveModalContacts = (contacts: Contact[]) => {
     setIsModalOpen(false);
     setShowSaveBanner(true);
-  };
-
-  const handleSaveContacts = async (contactListId: string) => {
-    if (!onSaveContacts) return;
-
-    setIsSaving(true);
-    try {
-      const allContacts = Object.values(contacts).flat();
-      await onSaveContacts(allContacts, contactListId);
-      setShowSaveBanner(false);
-    } catch (error) {
-      console.error("Error saving contacts:", error);
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const handleSearch = async (query: string, amount: number) => {
@@ -138,11 +121,9 @@ export default function CompanySearchEngine({
         contacts={totalContacts}
         isVisible={showSaveBanner && showSaveOption}
         onDismiss={() => setShowSaveBanner(false)}
-        onSave={handleSaveContacts}
         onLogin={onLogin}
         contactLists={contactLists}
         isLoggedIn={isLoggedIn}
-        isSaving={isSaving}
       />
     </div>
   );

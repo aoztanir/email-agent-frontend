@@ -148,7 +148,7 @@ Rules:
 
     console.log("Generating email patterns with Groq...");
     const result = await generateObject({
-      model: groq("meta-llama/llama-4-scout-17b-16e-instruct"),
+      model: groq("meta-llama/llama-4-maverick-17b-128e-instruct"),
       schema: BatchEmailPatternsSchema,
       prompt,
       temperature: 0.1,

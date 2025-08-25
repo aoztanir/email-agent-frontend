@@ -17,7 +17,6 @@ export default function MainPage() {
   const [selectedCompany, setSelectedCompany] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSaveBanner, setShowSaveBanner] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
 
   const {
     companies,
@@ -51,22 +50,6 @@ export default function MainPage() {
     setShowSaveBanner(true);
   };
 
-  const handleSaveContacts = async (contactListId: string) => {
-    setIsSaving(true);
-    try {
-      const allContacts = Object.values(contacts).flat();
-      // This is for demo purposes - in the real app this would save to the database
-      toast.success(
-        `Demo: Would save ${allContacts.length} contacts to list ${contactListId}`
-      );
-      setShowSaveBanner(false);
-      // TODO: Implement actual save functionality when user system is ready
-    } catch (error) {
-      console.error("Error saving contacts:", error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const handleSearch = async (query: string, amount: number) => {
     setShowSaveBanner(false);
@@ -132,11 +115,9 @@ export default function MainPage() {
         contacts={Object.values(contacts).flat()}
         isVisible={showSaveBanner}
         onDismiss={() => setShowSaveBanner(false)}
-        onSave={handleSaveContacts}
         onLogin={handleLogin}
         contactLists={[]}
         isLoggedIn={false}
-        isSaving={isSaving}
       />
 
       <DockDemo />

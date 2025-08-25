@@ -7,7 +7,7 @@ export const COLORS = {
     },
     light_variant_with_border: {
       class:
-        "border border-red-500 bg-red-200/30 dark:border-red-900/90 dark:bg-red-950/30",
+        "border border-red-500 bg-red-200/30 dark:border-red-900/90 dark:bg-red-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -22,7 +22,7 @@ export const COLORS = {
     },
     light_variant_with_border: {
       class:
-        "border border-blue-500 bg-blue-200/30 dark:border-blue-900/90 dark:bg-blue-950/30",
+        "border border-blue-500 bg-blue-200/30 dark:border-blue-900/90 dark:bg-blue-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -37,7 +37,7 @@ export const COLORS = {
     },
     light_variant_with_border: {
       class:
-        "border border-teal-500 bg-teal-200/30 dark:border-teal-900/90 dark:bg-teal-950/30",
+        "border border-teal-500 bg-teal-200/30 dark:border-teal-900/90 dark:bg-teal-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -52,7 +52,7 @@ export const COLORS = {
     },
     light_variant_with_border: {
       class:
-        "border border-yellow-500 bg-yellow-200/30 dark:border-yellow-900/90 dark:bg-yellow-950/30",
+        "border border-yellow-500 bg-yellow-200/30 dark:border-yellow-900/90 dark:bg-yellow-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -67,7 +67,7 @@ export const COLORS = {
     },
     light_variant_with_border: {
       class:
-        "border border-amber-500 bg-amber-200/30 dark:border-amber-900/90 dark:bg-amber-950/30",
+        "border border-amber-500 bg-amber-200/30 dark:border-amber-900/90 dark:bg-amber-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -82,7 +82,7 @@ export const COLORS = {
     },
     light_variant_with_border: {
       class:
-        "border border-purple-500 bg-purple-200/30 dark:border-purple-900/90 dark:bg-purple-950/30",
+        "border border-purple-500 bg-purple-200/30 dark:border-purple-900/90 dark:bg-purple-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -97,7 +97,7 @@ export const COLORS = {
     },
     light_variant_with_border: {
       class:
-        "border border-pink-500 bg-pink-200/30 dark:border-pink-900/90 dark:bg-pink-950/30",
+        "border border-pink-500 bg-pink-200/30 dark:border-pink-900/90 dark:bg-pink-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -112,7 +112,7 @@ export const COLORS = {
     },
     light_variant_with_border: {
       class:
-        "border border-orange-500 bg-orange-200/30 dark:border-orange-900/90 dark:bg-orange-950/30",
+        "border border-orange-500 bg-orange-200/30 dark:border-orange-900/90 dark:bg-orange-950/30 backdrop-blur-xs"
     },
     light_variant: {
       class:
@@ -127,7 +127,7 @@ export const COLORS = {
     },
     light_variant_with_border: {
       class:
-        "border border-indigo-500 bg-indigo-200/30 dark:border-indigo-900/90 dark:bg-indigo-950/30",
+        "border border-indigo-500 bg-indigo-200/30 dark:border-indigo-900/90 dark:bg-indigo-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -140,7 +140,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" }, // replace with actual HSL
     light_variant_with_border: {
       class:
-        "border border-slate-500 bg-slate-200/30 dark:border-slate-900/90 dark:bg-slate-950/30",
+        "border border-slate-500 bg-slate-200/30 dark:border-slate-900/90 dark:bg-slate-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -154,7 +154,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-gray-500 bg-gray-200/30 dark:border-gray-900/90 dark:bg-gray-950/30",
+        "border border-gray-500 bg-gray-200/30 dark:border-gray-900/90 dark:bg-gray-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -168,7 +168,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-zinc-500 bg-zinc-200/30 dark:border-zinc-900/90 dark:bg-zinc-950/30",
+        "border border-zinc-500 bg-zinc-200/30 dark:border-zinc-900/90 dark:bg-zinc-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -182,7 +182,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-neutral-500 bg-neutral-200/30 dark:border-neutral-900/90 dark:bg-neutral-950/30",
+        "border border-neutral-500 bg-neutral-200/30 dark:border-neutral-900/90 dark:bg-neutral-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -196,7 +196,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-stone-500 bg-stone-200/30 dark:border-stone-900/90 dark:bg-stone-950/30",
+        "border border-stone-500 bg-stone-200/30 dark:border-stone-900/90 dark:bg-stone-950/30 backdrop-blur-xs"
     },
     light_variant: {
       class:
@@ -210,7 +210,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-lime-500 bg-lime-200/30 dark:border-lime-900/90 dark:bg-lime-950/30",
+        "border border-lime-500 bg-lime-200/30 dark:border-lime-900/90 dark:bg-lime-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -224,7 +224,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-green-500 bg-green-200/30 dark:border-green-900/90 dark:bg-green-950/30",
+        "border border-green-500 bg-green-200/30 dark:border-green-900/90 dark:bg-green-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -238,7 +238,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-emerald-500 bg-emerald-200/30 dark:border-emerald-900/90 dark:bg-emerald-950/30",
+        "border border-emerald-500 bg-emerald-200/30 dark:border-emerald-900/90 dark:bg-emerald-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -252,7 +252,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-cyan-500 bg-cyan-200/30 dark:border-cyan-900/90 dark:bg-cyan-950/30",
+        "border border-cyan-500 bg-cyan-200/30 dark:border-cyan-900/90 dark:bg-cyan-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -266,7 +266,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-sky-500 bg-sky-200/30 dark:border-sky-900/90 dark:bg-sky-950/30",
+        "border border-sky-500 bg-sky-200/30 dark:border-sky-900/90 dark:bg-sky-950/30 backdrop-blur-xs"
     },
     light_variant: {
       class:
@@ -280,7 +280,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-violet-500 bg-violet-200/30 dark:border-violet-900/90 dark:bg-violet-950/30",
+        "border border-violet-500 bg-violet-200/30 dark:border-violet-900/90 dark:bg-violet-950/30 backdrop-blur-xs"
     },
     light_variant: {
       class:
@@ -294,7 +294,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-fuchsia-500 bg-fuchsia-200/30 dark:border-fuchsia-900/90 dark:bg-fuchsia-950/30",
+        "border border-fuchsia-500 bg-fuchsia-200/30 dark:border-fuchsia-900/90 dark:bg-fuchsia-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -308,7 +308,7 @@ export const COLORS = {
     base: { hsl: "–, –, –" },
     light_variant_with_border: {
       class:
-        "border border-rose-500 bg-rose-200/30 dark:border-rose-900/90 dark:bg-rose-950/30",
+        "border border-rose-500 bg-rose-200/30 dark:border-rose-900/90 dark:bg-rose-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:
@@ -323,7 +323,7 @@ export const COLORS = {
     },
     light_variant_with_border: {
       class:
-        "border border-indigo-500 bg-indigo-200/30 dark:border-indigo-900/90 dark:bg-indigo-950/30",
+        "border border-indigo-500 bg-indigo-200/30 dark:border-indigo-900/90 dark:bg-indigo-950/30 backdrop-blur-xs",
     },
     light_variant: {
       class:

@@ -83,10 +83,8 @@ export interface ContactSaveBannerProps {
   contacts: Contact[];
   isVisible: boolean;
   onDismiss: () => void;
-  onSave?: (contactListId: string) => Promise<void>;
   onLogin?: () => void;
   contactLists?: ContactList[];
   isLoggedIn?: boolean;
-  isSaving?: boolean;
   className?: string;
 }

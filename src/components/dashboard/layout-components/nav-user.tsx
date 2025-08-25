@@ -42,17 +42,12 @@ export function NavUser() {
     // Get current user
     const getCurrentUser = async () => {
       try {
-        console.log("Checking Supabase auth...");
         const {
           data: { user: authUser },
           error: authError,
         } = await supabase.auth.getUser();
 
-        console.log("Auth user:", authUser);
-        console.log("Auth error:", authError);
-
         if (authError) {
-          console.error("Supabase auth error:", authError);
           setUser({
             name: "Demo User",
             email: "demo@example.com",
@@ -62,7 +57,6 @@ export function NavUser() {
         }
 
         if (authUser) {
-          console.log("Setting authenticated user");
           setUser({
             name:
               authUser.user_metadata?.full_name ||
@@ -72,7 +66,6 @@ export function NavUser() {
             avatar: authUser.user_metadata?.avatar_url || "",
           });
         } else {
-          console.log("No authenticated user found, using demo user");
           // Fallback for demo purposes
           setUser({
             name: "Demo User",
@@ -81,7 +74,6 @@ export function NavUser() {
           });
         }
       } catch (error) {
-        console.error("Error getting user:", error);
         setUser({
           name: "Demo User",
           email: "demo@example.com",
@@ -96,7 +88,6 @@ export function NavUser() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("Auth state changed:", event, session?.user);
       if (session?.user) {
         setUser({
           name:

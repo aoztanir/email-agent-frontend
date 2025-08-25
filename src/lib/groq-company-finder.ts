@@ -40,7 +40,7 @@ export class GroqCompanyFinder {
   ): Promise<CompanyResult[]> {
     try {
       const result = await generateObject({
-        model: this.groq("meta-llama/llama-4-scout-17b-16e-instruct"),
+        model: this.groq("llama-3.3-70b-versatile"),
         schema: CompanyResponseSchema,
         prompt: `Find ${limit} companies that match the query "${query}" in ${location}.
         
