@@ -15,7 +15,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { COLORS } from "@/constants/COLORS";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
+import { useAuthStore } from "@/store/authStore";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Contact {
   id: string;
@@ -60,6 +62,9 @@ export default function ContactSaveBanner({
 }: ContactSaveBannerProps) {
   const [selectedListId, setSelectedListId] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const { user } = useAuthStore();
+  const supabase = createClient();
+  const queryClient = useQueryClient();
 
   const totalContacts = contacts.length;
   const totalEmails = contacts.reduce(
@@ -80,6 +85,22 @@ export default function ContactSaveBanner({
 
     setIsSaving(true);
     try {
+      // Check if user is actually authenticated
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        console.error("User not authenticated:", authError);
+        toast.error("Please log in to save contacts");
+        onLogin?.();
+        return;
+      }
+
+      console.log("Authenticated user:", user.id);
+      console.log("Selected contact list:", selectedListId);
+
       const contactIds = contacts.map((contact) => contact.id);
 
       // Prepare data for bulk insert
@@ -115,6 +136,12 @@ export default function ContactSaveBanner({
 
       const listName = contactList?.name || "contact list";
       toast.success(`Successfully saved ${savedCount} contacts to ${listName}`);
+      
+      // Invalidate React Query caches to refresh manage page
+      queryClient.invalidateQueries({ queryKey: ["contact-lists"] });
+      queryClient.invalidateQueries({ queryKey: ["list-contacts", selectedListId] });
+      queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
+      
       onDismiss();
     } catch (error) {
       console.error("Error saving contacts:", error);

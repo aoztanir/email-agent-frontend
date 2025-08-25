@@ -392,7 +392,7 @@ export default function ManageContactsPage() {
     <div className="flex h-[calc(100vh-8rem)] gap-4">
       {/* Left Panel - Contact Lists */}
       <div className="w-72">
-        <Card className="h-full flex flex-col">
+        <Card className="h-full flex flex-col shadow-xl">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -476,7 +476,7 @@ export default function ManageContactsPage() {
       {/* Right Panel - List Contacts */}
       <div className="flex-1">
         {selectedListId ? (
-          <Card className="h-full flex flex-col">
+          <Card className="h-full flex flex-col shadow-xl">
             {/* Statistics Banner */}
 
             <CardHeader>
@@ -514,7 +514,7 @@ export default function ManageContactsPage() {
               </div>
             </CardHeader>
 
-            <CardContent className="flex-1 overflow-hidden">
+            <CardContent className="flex-1 overflow-y-scroll overflow-x-hidden">
               {isLoadingContacts ? (
                 <div className="flex items-center justify-center h-32">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
@@ -566,22 +566,14 @@ export default function ManageContactsPage() {
 
                   {/* Scrollable Table Container */}
                   <div className="flex-1 min-h-0">
-                    <div className="h-full border rounded-lg overflow-auto">
+                    <div className="h-full  rounded-lg overflow-auto">
                       <Table>
                         <TableHeader className="sticky top-0 bg-background border-b z-10">
                           <TableRow>
-                            <TableHead className="w-48">
-                              Contact
-                            </TableHead>
-                            <TableHead className="w-48">
-                              Email
-                            </TableHead>
-                            <TableHead className="w-36">
-                              Company
-                            </TableHead>
-                            <TableHead className="w-28">
-                              LinkedIn
-                            </TableHead>
+                            <TableHead className="w-48">Contact</TableHead>
+                            <TableHead className="w-48">Email</TableHead>
+                            <TableHead className="w-36">Company</TableHead>
+                            <TableHead className="w-28">LinkedIn</TableHead>
                             <TableHead className="w-24">Actions</TableHead>
                           </TableRow>
                         </TableHeader>

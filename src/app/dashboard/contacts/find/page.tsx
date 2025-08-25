@@ -7,7 +7,7 @@ import SearchResults from "@/components/search/search-results";
 import CompanyContactsModal from "@/components/search/company-contacts-modal";
 import ContactSaveBanner from "@/components/search/contact-save-banner";
 import { useSearch } from "@/hooks/use-search";
-import { toast } from "sonner";
+import { useAuthStore } from "@/store/authStore";
 import {
   Card,
   CardDescription,
@@ -48,6 +48,7 @@ export default function FindContactsPage() {
   const [showSaveBanner, setShowSaveBanner] = useState(false);
   const [contactLists, setContactLists] = useState<ContactList[]>([]);
 
+  const { user, isAuthenticated, initialize } = useAuthStore();
   const {
     companies,
     contacts,
@@ -60,9 +61,15 @@ export default function FindContactsPage() {
   } = useSearch();
   const supabase = createClient();
 
-  // Load contact lists on component mount
+  // Initialize auth and load contact lists
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
   useEffect(() => {
     const loadContactLists = async () => {
+      if (!isAuthenticated) return;
+
       try {
         const { data, error } = await supabase
           .from("contact_list")
@@ -81,7 +88,7 @@ export default function FindContactsPage() {
     };
 
     loadContactLists();
-  }, []);
+  }, [isAuthenticated]);
 
   // Show save banner when search completes and we have contacts
   useEffect(() => {
@@ -95,9 +102,7 @@ export default function FindContactsPage() {
   }, [isSearching, hasSearched, contacts]);
 
   const handleLogin = () => {
-    toast.info(
-      "Login feature coming soon! For now, you can still search and save contacts."
-    );
+    window.location.href = "/login";
   };
 
   return (
@@ -186,7 +191,7 @@ export default function FindContactsPage() {
         onDismiss={() => setShowSaveBanner(false)}
         onLogin={handleLogin}
         contactLists={contactLists}
-        isLoggedIn={true}
+        isLoggedIn={isAuthenticated}
       />
     </div>
   );

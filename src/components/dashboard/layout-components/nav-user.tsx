@@ -24,102 +24,34 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { createClient } from "@/utils/supabase/client";
-import { useEffect, useState } from "react";
-
-interface UserData {
-  name: string;
-  email: string;
-  avatar: string;
-}
+import { useAuthStore } from "@/store/authStore";
+import { useEffect } from "react";
 
 export function NavUser() {
   const { isMobile } = useSidebar();
-  const [user, setUser] = useState<UserData | null>(null);
-  const supabase = createClient();
+  const { user, isAuthenticated, initialize, signOut } = useAuthStore();
 
   useEffect(() => {
-    // Get current user
-    const getCurrentUser = async () => {
-      try {
-        const {
-          data: { user: authUser },
-          error: authError,
-        } = await supabase.auth.getUser();
-
-        if (authError) {
-          setUser({
-            name: "Demo User",
-            email: "demo@example.com",
-            avatar: "",
-          });
-          return;
-        }
-
-        if (authUser) {
-          setUser({
-            name:
-              authUser.user_metadata?.full_name ||
-              authUser.email?.split("@")[0] ||
-              "User",
-            email: authUser.email || "",
-            avatar: authUser.user_metadata?.avatar_url || "",
-          });
-        } else {
-          // Fallback for demo purposes
-          setUser({
-            name: "Demo User",
-            email: "demo@example.com",
-            avatar: "",
-          });
-        }
-      } catch (error) {
-        setUser({
-          name: "Demo User",
-          email: "demo@example.com",
-          avatar: "",
-        });
-      }
-    };
-
-    getCurrentUser();
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setUser({
-          name:
-            session.user.user_metadata?.full_name ||
-            session.user.email?.split("@")[0] ||
-            "User",
-          email: session.user.email || "",
-          avatar: session.user.user_metadata?.avatar_url || "",
-        });
-      } else {
-        setUser({
-          name: "Demo User",
-          email: "demo@example.com",
-          avatar: "",
-        });
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    initialize();
+  }, [initialize]);
 
   const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await signOut();
     window.location.href = "/";
   };
 
-  if (!user) {
-    return null;
-  }
+  // Use fallback for demo if not authenticated
+  const displayUser = user ? {
+    name: user.user_metadata?.full_name || user.email?.split("@")[0] || "User",
+    email: user.email || "",
+    avatar: user.user_metadata?.avatar_url || "",
+  } : {
+    name: "Demo User",
+    email: "demo@example.com",
+    avatar: "",
+  };
 
-  const initials = user.name
+  const initials = displayUser.name
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -136,15 +68,15 @@ export function NavUser() {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
-                <AvatarImage src={user.avatar} alt={user.name} />
+                <AvatarImage src={displayUser.avatar} alt={displayUser.name} />
                 <AvatarFallback className="rounded-lg">
                   {initials}
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
+                <span className="truncate font-medium">{displayUser.name}</span>
                 <span className="text-muted-foreground truncate text-xs">
-                  {user.email}
+                  {displayUser.email}
                 </span>
               </div>
               <MoreVertical className="ml-auto size-4" />
@@ -159,15 +91,15 @@ export function NavUser() {
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarImage src={displayUser.avatar} alt={displayUser.name} />
                   <AvatarFallback className="rounded-lg">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
+                  <span className="truncate font-medium">{displayUser.name}</span>
                   <span className="text-muted-foreground truncate text-xs">
-                    {user.email}
+                    {displayUser.email}
                   </span>
                 </div>
               </div>
